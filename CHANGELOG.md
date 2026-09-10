@@ -30,9 +30,16 @@ tagged when the redistribution finishes.
   particular layer: each layer drops its own scrape file into `scrape.d/` and
   ships its own dashboards. The layer that emits a metric declares where to
   find it.
-- **`compose.base.yaml`** composes the five layers, each of which owns the
-  services it runs in its own repository. A service defined in the composition
-  instead of in its layer is a service two teams edit.
+- **`compose.base.yaml`** composes the layers, each of which owns the services
+  it runs in its own repository. A service defined in the composition instead
+  of in its layer is a service two teams edit.
+
+  It is also where each layer's scrape file and dashboards get mounted into the
+  backend, because it is the only file that knows the other layers exist. The
+  first version declared an empty named volume for `scrape.d/` and mounted
+  nothing into it: the mechanism looked finished and Prometheus would have
+  scraped only itself. Verified now with `docker compose config`, which is the
+  check that would have caught it.
 
 ### Removed
 

@@ -7,7 +7,8 @@
 # compose.yaml. This file only says which layers take part. A service defined
 # here instead of in its layer is a service two teams edit.
 #
-# LAYOUT THIS FILE ASSUMES: the five repositories are siblings on disk.
+# LAYOUT THIS FILE ASSUMES: the repositories are siblings on disk, each in a
+# directory named after itself.
 #
 #     <somewhere>/
 #     ├── base-platform/     ← you are here
@@ -16,17 +17,33 @@
 #     ├── base-agents/
 #     └── base-interface/
 #
-# Compose resolves `include` relative to this file, and it cannot fetch a
-# repository. If your checkout is arranged differently, set BASE_ROOT and the
-# paths below follow it.
+# Compose resolves `include` relative to this file and cannot fetch a
+# repository. If your checkout sits elsewhere, set BASE_ROOT.
+#
+# The directory name matters and is easy to get wrong: a clone made before a
+# repository was renamed keeps the old directory name, and the failure is
+# `no such file or directory` pointing at a path that looks right.
 #
 # This is the development composition. Production is Kubernetes, and the layer
 # fragments are the source the manifests are generated from — see
 # docs/ARCHITECTURE.md.
 
 include:
-  - path: ${BASE_ROOT:-..}/base-knowledge/compose.yaml
-  - path: ${BASE_ROOT:-..}/base-inference/compose.yaml
-  - path: ${BASE_ROOT:-..}/base-agents/compose.yaml
-  - path: ${BASE_ROOT:-..}/base-interface/compose.yaml
+  # Only base-inference has services today. The other three are documentation
+  # so far, and their lines arrive when they have something to run.
+  - path: ${BASE_ROOT:-..}/base-inference/docker-compose.yml
   - path: ./compose.yaml
+
+# Each layer publishes the targets it wants scraped, in its own repository.
+# THIS is the file that knows all five exist, so this is where those files get
+# mounted into the backend. Putting the mount in compose.yaml would make the
+# platform layer's own fragment name the other layers; putting it in a layer's
+# fragment would make that layer redefine a service it does not own.
+services:
+  prometheus:
+    volumes:
+      - ${BASE_ROOT:-..}/base-inference/observability/scrape.d/inference.yml:/etc/prometheus/scrape.d/inference.yml:ro
+
+  grafana:
+    volumes:
+      - ${BASE_ROOT:-..}/base-inference/observability/dashboards:/etc/grafana/provisioning/dashboards/inference:ro
