@@ -5,14 +5,25 @@ someone follows to create the second one.
 
 ## 1. Pick the prefix
 
-The code of the contract funding the project, lowercase, no spaces. `g122` comes
-from REDACTED-INSTANCE.
+The code of the contract or grant funding the project, lowercase, no spaces.
 
-Do not use the methodology name (it mixes what is the client's with what is ours)
-nor the client name (it collides if they commission two platforms).
+Two names to avoid, for reasons that only separate later:
 
-**Add the line to the prefix map in this repository's `README.md`, in the first
-table.** Without it, the prefix is a riddle to whoever arrives later.
+- **The methodology name.** It usually belongs to the client and predates the
+  project; carrying it in a repository of ours mixes what is theirs with what is
+  ours. It also fails the day the same methodology is applied for a second
+  client.
+- **The client name.** It collides the day that client commissions a second
+  platform.
+
+**Register the prefix in the organisation profile**
+(`PUC-Behring-AI/.github`, `profile/README.md`), not here. A contract code is
+opaque by design, and something has to decode it — but that something cannot be
+the base. A base holding a registry of who uses it has become a component of its
+largest consumer.
+
+The profile is the organisation's page, not the base's, which is why it is the
+right home.
 
 ## 2. Create the five repositories
 
@@ -75,7 +86,39 @@ Until then, write it in your own repository.
 An engine generalised from a single case stiffens what was hard and abstracts
 what was easy.
 
-## 5. Board the train
+## 5. Pin the base version
 
-`base-platform` declares the version of each layer. The instance boards the weekly
-cadence like any other.
+**The base has one version, and the five repositories are tagged together on
+it.** `base-platform/VERSION` holds it; `base-platform/CHANGELOG.md` says what
+changed between one and the next.
+
+An instance records the version it runs on, in
+`<prefix>-platform/base-version.yaml`:
+
+    base: 0.1.0
+
+One number, not five. A single version means the combination has been released
+together, so "was this set tested against itself?" has an answer. Per-layer
+pinning would be more precise and would lose exactly that.
+
+The cost is real and worth knowing: a fix in one engine bumps the version of all
+five. That is deliberate — the alternative is five numbers nobody reconciles.
+
+## 6. Upgrading
+
+The base does not push. An instance pulls, and this is what pulling looks like:
+
+1. Read `CHANGELOG.md` from the base tag above yours.
+2. **Any entry marked `BREAKING` is a contract change.** It obliges the
+   instance to act before pinning the new version; nothing else does.
+3. Bump `base-version.yaml`, run the instance's gate, ship it through a pull
+   request like any other change.
+
+Staying behind is allowed and is sometimes correct. What is not allowed is not
+knowing: the pinned version is in a file, in git, so "which instances are behind
+0.2.0?" is a question a grep answers.
+
+## 7. Board the train
+
+The release train departs weekly with whatever is ready. The instance boards it
+like any other.

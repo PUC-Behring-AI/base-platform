@@ -24,19 +24,21 @@ arrow, "where could confidential data get out?" has a finite answer.
 
 ## Base and instance
 
-    BASE (reusable)                    INSTANCE G122 (private)
-    ┌─────────────────────────────┐    ┌──────────────────────────────────┐
-    │ base-platform   contracts   │◄───│ g122-platform   schemas          │
-    │ base-knowledge  engines     │◄───│ g122-knowledge  ontology         │
-    │ base-inference  Ray/vLLM    │◄───│ g122-inference  models           │
-    │ base-agents     runtime     │◄───│ g122-agents     flows, LoK, PoS  │
-    │ base-interface  shell       │◄───│ g122-interface  forms            │
-    └─────────────────────────────┘    └──────────────────────────────────┘
-       serves every instance                serves only this one
+    BASE (reusable)                  INSTANCE <prefix> (private)
+    ┌───────────────────────────┐    ┌──────────────────────────────────┐
+    │ base-platform  contracts  │◄───│ <prefix>-platform   schemas      │
+    │ base-knowledge engines    │◄───│ <prefix>-knowledge  ontology     │
+    │ base-inference serving    │◄───│ <prefix>-inference  models       │
+    │ base-agents    runtime    │◄───│ <prefix>-agents     flows, logic │
+    │ base-interface shell      │◄───│ <prefix>-interface  forms        │
+    └───────────────────────────┘    └──────────────────────────────────┘
+       serves every instance              serves only this one
 
 **The boundary is reuse, not code versus configuration.** An instance repository
-carries domain *code*, not only declarations: G122 requires LoK and PoS
-computation, questionnaire validation and methodology rules. That is software.
+carries domain *code*, not only declarations. A domain with a scoring model, a
+validation rule or a calculation of its own gets software, not YAML — and
+trying to express that calculation as configuration is a recognised way to
+waste a quarter.
 
 One question separates the columns: *does it serve more than one instance?* If
 it does, it is an engine. If it does not, it belongs to the instance — whether
@@ -81,7 +83,10 @@ The cost of that choice, stated so nobody rediscovers it: the slowest layer sets
 the pace for all four. The fixed cadence is what stops that becoming an
 indefinite wait.
 
-## Source
+## Why it is this way
 
-`specs/2026-09-10-arquitetura-base-cinco-camadas-design.md` (Portuguese). Where
-this document diverges from it, the spec wins.
+`docs/ADR.md` carries the decisions and the alternatives discarded, written
+without reference to any project.
+
+**This document names no client, no contract and no instance**, and neither does
+any other file in this repository. The rule and its cost are in the README.

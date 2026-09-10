@@ -6,28 +6,35 @@ train.
 This repository holds **no product logic**. If it acquires any, that logic has
 become a layer and must move out.
 
-## Prefixes — read this first
+**Version:** see [`VERSION`](VERSION). What changed between versions is in
+[`CHANGELOG.md`](CHANGELOG.md).
 
-| Prefix | What it is |
-|---|---|
-| `base-` | The reusable base. Engines that serve more than one instance. |
-| `g122-` | Instance **REDACTED-INSTANCE / REDACTED-CONTRACT** — AI-assisted exploratory geological risk assessment platform, built on the REDACTED-METHOD methodology. Private: it carries the client's methodology and sensitivity taxonomy. |
+## This repository knows of no project
 
-## The eleven repositories
+Deliberately, and it is the hardest rule here to keep. The base names no client,
+no contract, no methodology and no instance — not in a table, not in an example,
+not even in the rule that forbids it.
 
-| Repository | Layer | Team | Role |
-|---|---|---|---|
-| `base-platform` | `platform` | — | Contracts, gate, release |
-| `base-knowledge` | `knowledge` | Team 1 | Data and knowledge engine |
-| `base-inference` | `inference` | Team 2 | Inference engine |
-| `base-agents` | `agents` | Team 3 | Agent engine |
-| `base-interface` | `interface` | Team 4 | Interface engine |
-| `g122-platform` | `platform` | — | Instance schemas |
-| `g122-knowledge` | `knowledge` | Team 1 | Ontology, connectors, taxonomy |
-| `g122-inference` | `inference` | Team 2 | Served models and key policy |
-| `g122-agents` | `agents` | Team 3 | REDACTED-METHOD flows, LoK and PoS computation |
-| `g122-interface` | `interface` | Team 4 | Forms and visualisations |
-| `.github` | — | — | Organisation profile (the only public one) |
+The moment the base carries a registry of who uses it, it stops being a base: it
+becomes a component of its largest consumer, and every project after that
+inherits the first one's vocabulary.
+
+**Where instances are listed:** the organisation profile, which belongs to the
+organisation and not to the base. Registering a new prefix is step 1 of
+[`docs/ADAPTATION.md`](docs/ADAPTATION.md).
+
+## The five layers
+
+| Repository | Layer | Owns |
+|---|---|---|
+| `base-platform` | `platform` | Contracts, gate, release train |
+| `base-knowledge` | `knowledge` | Relational, vector, RDF graph, object store, sensitivity classification |
+| `base-inference` | `inference` | Serving models: elasticity, virtual keys, routing enforcement |
+| `base-agents` | `agents` | Agent runtime, MCP, guardrails, the routing decision, audit trail |
+| `base-interface` | `interface` | Session, layout, forms, visualisation |
+
+An **instance** is a deployed platform assembled on these five. It gets its own
+prefix and its own five repositories, named `<prefix>-<layer>`.
 
 ## Where to start
 
@@ -35,11 +42,11 @@ become a layer and must move out.
 |---|---|
 | Understand the whole architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Know what your layer owes its neighbour | [`docs/CONTRACTS.md`](docs/CONTRACTS.md) |
-| Create a new instance | [`docs/ADAPTATION.md`](docs/ADAPTATION.md) |
+| Create a new instance, or upgrade one | [`docs/ADAPTATION.md`](docs/ADAPTATION.md) |
 | Work as an agent in any of these repos | [`docs/AGENTS-base.md`](docs/AGENTS-base.md) |
-| Know why any of this exists | [`specs/`](specs/) — in Portuguese, the decision record |
+| Know why the architecture is what it is | [`docs/ADR.md`](docs/ADR.md) |
 
 ## State
 
 Documentation only. Executable contracts, fakes and the shared gate do not exist
-yet — they are stages E1 and E2 of the spec.
+yet.
