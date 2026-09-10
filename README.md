@@ -19,9 +19,15 @@ The moment the base carries a registry of who uses it, it stops being a base: it
 becomes a component of its largest consumer, and every project after that
 inherits the first one's vocabulary.
 
-**Where instances are listed:** the organisation profile, which belongs to the
-organisation and not to the base. Registering a new prefix is step 1 of
-[`docs/ADAPTATION.md`](docs/ADAPTATION.md).
+**There is no central registry either**, and that is the second version of this
+rule. The first attempt moved the list of instances out of here and onto the
+organisation's public profile page, which turned an internal architecture note
+into a product announcement and put a client's contract number where anyone
+could read it.
+
+An instance documents itself, in its own `<prefix>-platform` README, which is
+private and sits with the instance. Someone who can see the repository can
+decode the prefix by opening it; someone who cannot see it has no need to.
 
 ## The five layers
 

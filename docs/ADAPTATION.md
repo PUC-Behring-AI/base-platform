@@ -16,14 +16,18 @@ Two names to avoid, for reasons that only separate later:
 - **The client name.** It collides the day that client commissions a second
   platform.
 
-**Register the prefix in the organisation profile**
-(`PUC-Behring-AI/.github`, `profile/README.md`), not here. A contract code is
-opaque by design, and something has to decode it — but that something cannot be
-the base. A base holding a registry of who uses it has become a component of its
-largest consumer.
+**The prefix is decoded in the instance's own `<prefix>-platform` README, and
+nowhere else.** Not here, and not in a central list.
 
-The profile is the organisation's page, not the base's, which is why it is the
-right home.
+A contract code is opaque by design, so something has to decode it — but the
+answer is not a registry. The base cannot hold one: a base holding a list of
+who uses it has become a component of its largest consumer. And a central list
+elsewhere has to live somewhere, which is how the first attempt ended up
+publishing a client's contract number on the organisation's public page.
+
+An instance that documents itself needs no registry. Whoever can see
+`<prefix>-knowledge` can open `<prefix>-platform` and read what the prefix
+means. Whoever cannot see it has no need to know.
 
 ## 2. Create the five repositories
 

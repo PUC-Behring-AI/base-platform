@@ -160,21 +160,38 @@ instance that motivated it — in the prefix table, in the diagrams, in the
 examples, and in the very rule that forbade doing so.
 
 **Decision.** No client, contract, methodology or instance name appears anywhere
-in the base. The registry that decodes an instance prefix lives in the
-organisation profile, which belongs to the organisation rather than to the base.
+in the base. **And no central registry exists** — an instance documents itself,
+in its own `<prefix>-platform` README, which is private and sits with the
+instance.
 
-**Alternative discarded.** Keep a prefix table in the base, since an opaque
-contract code needs decoding somewhere.
+**Alternative discarded, twice.** First, a prefix table in the base, since an
+opaque contract code needs decoding somewhere. Then, when that was removed, the
+same table on the organisation's profile page.
 
-**What that would have cost.** A base holding a registry of who uses it has
-become a component of its largest consumer. The concrete failure is not the
-table itself: it is that the next project inherits the first one's vocabulary
-in every example, every diagram and every default — and nobody notices, because
-by then it reads as the way things are named here.
+**What each would have cost — and the second one was not hypothetical.** A base
+holding a registry of who uses it has become a component of its largest
+consumer; the concrete failure is that the next project inherits the first
+one's vocabulary in every example and every default, and nobody notices,
+because by then it reads as the way things are named here.
 
-**Consequences.** Examples in base documentation use `<prefix>` and are
-therefore less vivid than a real one would be. Someone encountering an instance
-prefix in the wild must look it up in the organisation profile rather than here.
+Moving the table to the organisation profile looked like the fix and was worse.
+That page is **public**. It turned an internal architecture note into a product
+announcement for a platform that is not one, and it published a client's
+contract number and project description to anyone who visited. The page was
+live for about two hours before it was taken down; the repository holding it
+was deleted.
+
+**Consequences.** Examples in base documentation use `<prefix>` and are less
+vivid than a real one would be. Someone encountering an instance prefix opens
+that instance's `platform` repository to decode it — and someone without access
+to that repository does not get an answer, which is the correct outcome rather
+than a gap.
+
+**The generalisation, which is the expensive part of this record:** the
+question "where should this list live?" kept producing answers, and the right
+answer was that the list should not exist. A registry is a thing to maintain,
+a thing to leak, and a thing that has to sit somewhere with a visibility of its
+own. Self-documenting artefacts have none of those properties.
 
 ---
 
