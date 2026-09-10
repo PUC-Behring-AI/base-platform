@@ -27,7 +27,7 @@ organisation and not to the base. Registering a new prefix is step 1 of
 
 | Repository | Layer | Owns |
 |---|---|---|
-| `base-platform` | `platform` | Contracts, gate, release train |
+| `base-platform` | `platform` | Contracts, gate, release train, the metrics backend, the composition |
 | `base-knowledge` | `knowledge` | Relational, vector, RDF graph, object store, sensitivity classification |
 | `base-inference` | `inference` | Serving models: elasticity, virtual keys, routing enforcement |
 | `base-agents` | `agents` | Agent runtime, MCP, guardrails, the routing decision, audit trail |
@@ -35,6 +35,21 @@ organisation and not to the base. Registering a new prefix is step 1 of
 
 An **instance** is a deployed platform assembled on these five. It gets its own
 prefix and its own five repositories, named `<prefix>-<layer>`.
+
+## Running it
+
+```bash
+docker compose -f compose.base.yaml up -d   # all five layers
+docker compose up -d                        # the metrics backend alone
+```
+
+Each layer owns the services it runs, in its own repository, in its own
+`compose.yaml`. This repository's fragment holds the metrics backend and
+nothing else; `compose.base.yaml` says which layers take part and assumes the
+five repositories are siblings on disk.
+
+A service defined in the composition file instead of in its layer is a service
+two teams edit.
 
 ## Where to start
 

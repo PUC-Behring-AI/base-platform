@@ -1,0 +1,19 @@
+apiVersion: 1
+
+# Dashboards are not stored here. Each layer ships its own under
+# observability/dashboards/ in its own repository, and the composed deployment
+# mounts them all into the path below. A dashboard about vLLM belongs to the
+# layer that runs vLLM, and keeping it here would make this repository know
+# what the other four are made of.
+
+providers:
+  - name: "base"
+    orgId: 1
+    folder: "base"
+    type: file
+    disableDeletion: false
+    editable: false
+    options:
+      # The provisioning mount path, not Grafana's data directory.
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true

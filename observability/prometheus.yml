@@ -1,0 +1,35 @@
+# Prometheus — the metrics backend for the whole base (C4).
+#
+# This file holds only what is true for every deployment. It scrapes nothing on
+# its own: each layer contributes its own targets as a file in scrape.d/, and
+# the layer that emits a metric is the layer that declares where to find it.
+#
+# NO PAYLOAD REACHES THIS BACKEND. Not a prompt, not a retrieved passage, not an
+# identifier that resolves to a person. A record carrying payload is provenance,
+# it is classified data, and it belongs to the knowledge layer under C6 — not
+# here, where anyone with operations access can read it. See ADR-009.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    # Set per deployment so that two environments scraped into one place stay
+    # distinguishable. An unset value here is a silent merge of production and
+    # staging series.
+    deployment: "${DEPLOYMENT_NAME:-local}"
+
+# Each layer drops one file here declaring its own jobs. Prometheus reads them
+# at startup and on reload, so adding a layer does not mean editing this file.
+#
+# Requires Prometheus 2.44 or newer; the pinned image is 2.55.0.
+scrape_config_files:
+  - /etc/prometheus/scrape.d/*.yml
+
+scrape_configs:
+  # The backend scrapes itself. This is the only job that belongs to the
+  # platform layer, because it is the only target the platform layer owns.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          layer: platform

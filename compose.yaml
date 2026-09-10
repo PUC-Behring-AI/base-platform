@@ -1,0 +1,54 @@
+# The metrics backend (C4), owned by the platform layer.
+#
+# This is the platform layer's own fragment. The composed deployment — all five
+# layers together — is compose.base.yaml, which includes this file and the four
+# others.
+#
+# Neither service is published beyond the host. Prometheus is reached by
+# Grafana over the internal network; Grafana is bound to the loopback address
+# and reached through a tunnel. A metrics backend on a public port is a map of
+# the deployment handed to whoever asks.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=5GB
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Each layer's fragment mounts its own scrape file into this directory.
+      - prometheus_scrape_d:/etc/prometheus/scrape.d
+      - prometheus_data:/prometheus
+    deploy:
+      resources:
+        limits:
+          # Bounded on purpose: an unbounded TSDB is the service that fills the
+          # disk on the machine everything else runs on.
+          memory: ${PROMETHEUS_MEMORY_LIMIT:-1g}
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    depends_on:
+      - prometheus
+    ports:
+      # Loopback only. Reach it over a tunnel, never by publishing this port.
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      # No default. Without this variable the stack refuses to start, rather
+      # than starting on Grafana's built-in admin:admin.
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  prometheus_scrape_d:
+  grafana_data:

@@ -1,0 +1,13 @@
+apiVersion: 1
+
+# Provisioned rather than configured by hand: a dashboard that only works after
+# someone clicks through a setup wizard is a dashboard that is broken on every
+# fresh machine, and nobody finds out until the day they needed it.
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

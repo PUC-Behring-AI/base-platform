@@ -1,0 +1,32 @@
+# The whole base, composed from the five layers.
+#
+#   docker compose -f compose.base.yaml up -d      all five layers
+#   docker compose up -d                           this layer alone
+#
+# Each layer owns the services it runs, in its own repository, in its own
+# compose.yaml. This file only says which layers take part. A service defined
+# here instead of in its layer is a service two teams edit.
+#
+# LAYOUT THIS FILE ASSUMES: the five repositories are siblings on disk.
+#
+#     <somewhere>/
+#     ├── base-platform/     ← you are here
+#     ├── base-knowledge/
+#     ├── base-inference/
+#     ├── base-agents/
+#     └── base-interface/
+#
+# Compose resolves `include` relative to this file, and it cannot fetch a
+# repository. If your checkout is arranged differently, set BASE_ROOT and the
+# paths below follow it.
+#
+# This is the development composition. Production is Kubernetes, and the layer
+# fragments are the source the manifests are generated from — see
+# docs/ARCHITECTURE.md.
+
+include:
+  - path: ${BASE_ROOT:-..}/base-knowledge/compose.yaml
+  - path: ${BASE_ROOT:-..}/base-inference/compose.yaml
+  - path: ${BASE_ROOT:-..}/base-agents/compose.yaml
+  - path: ${BASE_ROOT:-..}/base-interface/compose.yaml
+  - path: ./compose.yaml
