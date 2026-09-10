@@ -34,6 +34,19 @@ tagged when the redistribution finishes.
   services it runs in its own repository. A service defined in the composition
   instead of in its layer is a service two teams edit.
 
+### Removed
+
+- **The central instance registry, and the page that held it.** Version 0.2.0
+  moved the list of instance prefixes out of the base and onto the
+  organisation's profile page. That page is public: it turned an internal
+  architecture note into a product announcement, and it published a client's
+  contract number. The page was live for roughly two hours; the repository
+  holding it has been deleted.
+
+  There is no registry now. An instance documents itself in its own
+  `<prefix>-platform` README. See ADR-006, which records both discarded
+  answers and the reason the question kept producing bad ones.
+
 ### Notes
 
 - `prometheus.yml` here carries no scrape target beyond Prometheus itself, and
