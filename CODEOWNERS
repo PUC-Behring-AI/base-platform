@@ -1,0 +1,20 @@
+# CODEOWNERS — who must approve what.
+#
+# Each team holds a VETO over its own layer's contract. This is what stops one
+# layer from changing what its neighbour consumes without the neighbour knowing.
+#
+# The teams below DO NOT EXIST on GitHub yet. Uncomment each line once the
+# matching team is created (`gh api orgs/PUC-Behring-AI/teams`). A rule pointing
+# at a non-existent team blocks the pull request without explaining why, which
+# is worse than no rule at all.
+
+# Everything, by default, needs someone.
+# *                        @PUC-Behring-AI/platform
+
+# The contracts: both sides approve. This is the line the whole file exists for.
+# /docs/CONTRACTS.md       @PUC-Behring-AI/knowledge @PUC-Behring-AI/inference @PUC-Behring-AI/agents @PUC-Behring-AI/interface
+
+# Architecture and adaptation process: a change here changes all ten repos.
+# /docs/ARCHITECTURE.md    @PUC-Behring-AI/platform
+# /docs/ADAPTATION.md      @PUC-Behring-AI/platform
+# /docs/AGENTS-base.md     @PUC-Behring-AI/platform
