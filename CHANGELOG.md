@@ -17,6 +17,31 @@ minor carries breaking changes.
 
 ---
 
+## [Unreleased]
+
+Redistributing the parts of the original monolithic server into the layers they
+belong to. Tracked as issue #14; this section grows one slice at a time and is
+tagged when the redistribution finishes.
+
+### Added
+
+- **The metrics backend lives here now** — `compose.yaml` runs Prometheus and
+  Grafana, and `observability/` holds their configuration. Nothing about any
+  particular layer: each layer drops its own scrape file into `scrape.d/` and
+  ships its own dashboards. The layer that emits a metric declares where to
+  find it.
+- **`compose.base.yaml`** composes the five layers, each of which owns the
+  services it runs in its own repository. A service defined in the composition
+  instead of in its layer is a service two teams edit.
+
+### Notes
+
+- `prometheus.yml` here carries no scrape target beyond Prometheus itself, and
+  a comment saying why: no payload reaches this backend. A record with payload
+  is provenance, it is classified, and it goes to `knowledge` under C6.
+- Grafana refuses to start without `GRAFANA_ADMIN_PASSWORD`, rather than
+  falling back to `admin:admin`.
+
 ## [0.2.0] — 2026-09-10
 
 Two new contracts and one rewritten. Everything here is `BREAKING`, because
