@@ -13,11 +13,11 @@ already did once.
 
 | Layer | Owns | Does **not** own |
 |---|---|---|
-| `knowledge` | Ingestion, relational, vector, RDF graph, object store, assignment of the sensitivity classification at the source, observability backends | No notion of business flow. Never calls a model. |
+| `knowledge` | Ingestion, relational, vector, RDF graph, object store, assignment of the sensitivity classification at the source, **the provenance store** | No notion of business flow. Never calls a model. Holds no operational metric. |
 | `inference` | Ray Serve, vLLM, KubeRay, LiteLLM, virtual keys, budgets, elasticity, enforcement of the routing policy | Knows nothing about the domain. Never reads the knowledge base. |
-| `agents` | Flows, orchestration, MCP, guardrails, the routing decision, audit trail, explainability | Persists no knowledge. Manages no GPU. Renders nothing. |
+| `agents` | Flows, orchestration, MCP, guardrails, the routing decision, explainability | Persists no knowledge. Manages no GPU. Renders nothing. Does not *store* the audit trail — it emits to it. |
 | `interface` | Session, layout, forms, visualisation, audit view | Does not talk to `knowledge` or `inference`. Exactly one arrow leaves here. |
-| `platform` | Contracts, gate, cross-layer tests, release train | Not one line of product logic. |
+| `platform` | Contracts, gate, cross-layer tests, release train, **the metrics backend**, the operator CLI | Not one line of product logic. Never stores a payload. |
 
 The `interface` restriction is what makes leak auditing tractable. With one
 arrow, "where could confidential data get out?" has a finite answer.
@@ -82,6 +82,26 @@ scheduled day with whatever is ready; whoever missed it takes the next one.
 The cost of that choice, stated so nobody rediscovers it: the slowest layer sets
 the pace for all four. The fixed cadence is what stops that becoming an
 indefinite wait.
+
+## Two kinds of record, and why they do not share a home
+
+The criterion is one question: **does the record contain payload?**
+
+| | Metrics (C4) | Provenance (C6) |
+|---|---|---|
+| Answers | is it up, how fast, how much | what produced this, on what evidence, under which key |
+| Contains | counters, latencies, histograms | passages, prompts, completions, decisions |
+| Lands in | `platform` | `knowledge`, under a classification |
+| Retention | days, aggregated, disposable | contractual, per record, append-only |
+| Readable by | whoever operates the platform | whoever may read the data it describes |
+
+A trace store that records prompts is not observability. It holds the same text
+the request carried, so if that text was confidential, the store is now a
+confidential-data store — sitting outside the taxonomy, outside the key policy,
+and readable by anyone with operations access.
+
+**Emission is always the layer's own.** What is centralised is where records
+land, never who produces them.
 
 ## Why it is this way
 
