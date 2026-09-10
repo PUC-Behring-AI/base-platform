@@ -19,8 +19,10 @@ services:
       - --web.enable-lifecycle
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      # Each layer's fragment mounts its own scrape file into this directory.
-      - prometheus_scrape_d:/etc/prometheus/scrape.d
+      # scrape.d/ stays empty here on purpose. compose.base.yaml mounts each
+      # layer's file into it, because that is the only file that knows the
+      # other layers exist. Running this fragment alone gives a backend that
+      # scrapes itself and nothing else — correct, and not very interesting.
       - prometheus_data:/prometheus
     deploy:
       resources:
@@ -50,5 +52,4 @@ services:
 
 volumes:
   prometheus_data:
-  prometheus_scrape_d:
   grafana_data:
