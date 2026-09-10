@@ -24,19 +24,21 @@ arrow, "where could confidential data get out?" has a finite answer.
 
 ## Base and instance
 
-    BASE (reusable)                    INSTANCE REDACTED-INSTANCE (private)
-    ┌─────────────────────────────┐    ┌──────────────────────────────────┐
-    │ base-platform   contracts   │◄───│ REDACTED-INSTANCE-platform   schemas          │
-    │ base-knowledge  engines     │◄───│ REDACTED-INSTANCE-knowledge  ontology         │
-    │ base-inference  Ray/vLLM    │◄───│ REDACTED-INSTANCE-inference  models           │
-    │ base-agents     runtime     │◄───│ REDACTED-INSTANCE-agents     flows, REDACTED-METRIC, REDACTED-METRIC  │
-    │ base-interface  shell       │◄───│ REDACTED-INSTANCE-interface  forms            │
-    └─────────────────────────────┘    └──────────────────────────────────┘
-       serves every instance                serves only this one
+    BASE (reusable)                  INSTANCE <prefix> (private)
+    ┌───────────────────────────┐    ┌──────────────────────────────────┐
+    │ base-platform  contracts  │◄───│ <prefix>-platform   schemas      │
+    │ base-knowledge engines    │◄───│ <prefix>-knowledge  ontology     │
+    │ base-inference serving    │◄───│ <prefix>-inference  models       │
+    │ base-agents    runtime    │◄───│ <prefix>-agents     flows, logic │
+    │ base-interface shell      │◄───│ <prefix>-interface  forms        │
+    └───────────────────────────┘    └──────────────────────────────────┘
+       serves every instance              serves only this one
 
 **The boundary is reuse, not code versus configuration.** An instance repository
-carries domain *code*, not only declarations: REDACTED-INSTANCE requires REDACTED-METRIC and REDACTED-METRIC
-computation, questionnaire validation and methodology rules. That is software.
+carries domain *code*, not only declarations. A domain with a scoring model, a
+validation rule or a calculation of its own gets software, not YAML — and
+trying to express that calculation as configuration is a recognised way to
+waste a quarter.
 
 One question separates the columns: *does it serve more than one instance?* If
 it does, it is an engine. If it does not, it belongs to the instance — whether
@@ -81,7 +83,10 @@ The cost of that choice, stated so nobody rediscovers it: the slowest layer sets
 the pace for all four. The fixed cadence is what stops that becoming an
 indefinite wait.
 
-## Source
+## Why it is this way
 
-`specs/2026-09-10-arquitetura-base-cinco-camadas-design.md` (Portuguese). Where
-this document diverges from it, the spec wins.
+`docs/ADR.md` carries the decisions and the alternatives discarded, written
+without reference to any project.
+
+**This document names no client, no contract and no instance**, and neither does
+any other file in this repository. The rule and its cost are in the README.
