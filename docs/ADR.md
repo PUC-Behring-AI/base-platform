@@ -221,3 +221,89 @@ repositories rather than redesigning anything.
 **Consequences.** A repository created without its properties is invisible to
 every filter, and nothing warns about it. Setting them is a step in
 `ADAPTATION.md`, and until the shared gate exists, nothing enforces it.
+
+---
+
+## ADR-009: Provenance is not observability, and they do not share a store
+
+**Context.** Version 0.1.0 had one contract for "telemetry: traces and metrics",
+landing in one place. Under that wording, a store recording model prompts and
+completions sat beside a store recording request counts, and both were treated
+as operational infrastructure.
+
+That is a leak path, and it is invisible from every side. If a request carried
+data classified as confidential, the trace store now holds that text — outside
+the sensitivity taxonomy, outside the key policy, and readable by anyone with
+operations access. Nothing in the architecture flags it, because the record was
+filed as a metric.
+
+It is also a loss in the other direction. An audit trail is a **product
+requirement** in any deployment that must explain its outputs. Filing it as
+operational telemetry gives it the retention of a metric — days, aggregated —
+when what is needed is per-record and permanent.
+
+**Decision.** Two contracts, split by one question: *does the record contain
+payload?*
+
+- **No** → metric. C4, to `platform`. Aggregated, disposable, readable by
+  whoever operates the system.
+- **Yes** → provenance. C6, to `knowledge`. Carries a classification assigned
+  the same way C1 assigns one, stored under the same key policy as the data it
+  describes, append-only, correlated across layers by a request identifier.
+
+Emission stays with each layer in both cases. Only the destination is shared.
+
+**Alternative discarded.** A sixth layer owning both, on the argument that the
+provenance store is the one place containing everything and its access control
+should belong to no single layer.
+
+**What that would have cost.** It is the right shape eventually, and it is
+premature now: a sixth layer before the fifth one works, which is exactly what
+ADR-004's rule against early extension points warns about. The argument that
+justifies it — the store's access control differs from every layer's — is
+answered for now by the classification travelling with the record. When that
+stops being enough, the contract is already the boundary, so moving the store
+is a deployment change rather than a redesign.
+
+**Consequences.** `knowledge` now has two write profiles that look nothing alike:
+batch ingestion of source material, and a per-request append on the hot path.
+That is a real operational tension and it is accepted knowingly. `platform`
+gains infrastructure it runs but must never read payload from — its own
+"does not own" line says so.
+
+---
+
+## ADR-010: Identity is a contract, because without one it becomes a raw SQL write
+
+**Context.** Provisioning a person crosses two layers: a credential with a
+budget in the serving layer, an account with model grants in the interface
+layer. No contract covered it.
+
+The first implementation did it anyway. It entered a container by fixed name
+and ran `sqlite3` against the interface's private database, inserting and
+deleting rows in its access-grant table directly. Six hundred lines of shell
+doing surgery on a neighbour's storage — and no contract could be violated,
+because none existed.
+
+**Decision.** C5. The serving layer exposes issuing, inspecting and revoking a
+credential; the interface layer exposes creating, inspecting and removing an
+account and granting model access. `platform` orchestrates the two calls and
+owns the rollback when the second fails after the first succeeded.
+
+**No layer writes into another layer's storage.** Not through a database file,
+not through a container name, not "just for provisioning".
+
+**Alternative discarded.** Keep it as an operations script that reaches into
+both, moved into `platform` so at least it lives where it crosses.
+
+**What that would have cost.** Relocating the violation is not fixing it. The
+script would still depend on a container name, a file path and a table schema
+that the interface layer is free to change without telling anyone — and the day
+it changes, provisioning breaks with a stack trace pointing at the wrong
+repository.
+
+**Consequences.** A layer that cannot be provisioned through its own API is
+now, by this contract, a layer with an incomplete API — a defect in that layer
+rather than a licence to go around it. Where the interface is a third-party
+product without such an API, the interface layer either wraps it or replaces
+it, and that cost is visible instead of hidden in a shell script.

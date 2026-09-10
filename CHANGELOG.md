@@ -17,6 +17,49 @@ minor carries breaking changes.
 
 ---
 
+## [0.2.0] — 2026-09-10
+
+Two new contracts and one rewritten. Everything here is `BREAKING`, because
+every entry changes a contract and the layer on the other side already relies
+on it.
+
+### Changed
+
+- **`BREAKING` — C4 is metrics only, and it lands in `platform`.** It used to
+  say "telemetry: traces and metrics", landing in `knowledge`. That wording put
+  a store recording prompts and completions beside one recording request
+  counts, and treated both as operations infrastructure. **No payload may reach
+  C4** — not a prompt, not a passage, not an identifier resolving to a person.
+  See ADR-009.
+
+### Added
+
+- **`BREAKING` — C6, provenance.** One record per request, emitted by every
+  layer that touched it, correlated by an identifier the interface generates
+  and every layer propagates unchanged. It lands in `knowledge`, carries a
+  classification assigned the way C1 assigns one, and is stored under the same
+  key policy as the data it describes. Append-only. This is what makes an audit
+  trail reconstructable across five layers, and it is a product requirement
+  wherever a deployment must explain its outputs.
+- **`BREAKING` — C5, identity.** The serving layer exposes issuing, inspecting
+  and revoking a credential; the interface layer exposes creating an account
+  and granting model access; `platform` orchestrates and owns the rollback.
+  **No layer writes into another layer's storage** — the rule exists because
+  the first implementation did exactly that, with `docker exec` and raw SQL
+  against the interface's private database. See ADR-010.
+- **ADR-009** — provenance is not observability, and the criterion that
+  separates them: does the record contain payload?
+- **ADR-010** — identity is a contract, because without one it becomes a raw
+  SQL write.
+
+### What an instance must do before pinning 0.2.0
+
+1. Nothing sends payload to the metrics backend.
+2. Every layer emits a provenance record and propagates the request identifier
+   unchanged.
+3. Provisioning goes through each layer's API. If a layer has no such API, that
+   is a defect in the layer.
+
 ## [0.1.0] — 2026-09-10
 
 The base exists as documentation. No executable artefact ships in this version:
@@ -55,4 +98,5 @@ built against, not which code it runs.
   version check, `CODEOWNERS` is inert, and two candidate library dependencies
   were assumed rather than verified.
 
+[0.2.0]: https://github.com/PUC-Behring-AI/base-platform/releases/tag/v0.2.0
 [0.1.0]: https://github.com/PUC-Behring-AI/base-platform/releases/tag/v0.1.0
