@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.base.internal/envelope.schema.json",
+  "title": "Request envelope",
+  "description": "The tracing fields every contract call carries. interface generates request_id; every layer that touches the request propagates it unchanged — that propagation is what makes C6 provenance reconstructable across five layers instead of five disconnected logs. No additionalProperties:false here, deliberately: this schema is composed via allOf into c6_provenance.schema.json, and additionalProperties:false on a subschema rejects the very fields the composing schema adds — a classic JSON Schema trap. The composing schema is where 'no extra fields' gets enforced, if it wants to.",
+  "type": "object",
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Generated once, by the interface layer, at the start of a request. Never regenerated downstream."
+    },
+    "emitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When THIS record was produced, not when the request started."
+    },
+    "emitted_by": {
+      "type": "string",
+      "enum": ["knowledge", "inference", "agents", "interface", "platform"],
+      "description": "Which layer produced this record. Not which layer the request is 'about'."
+    }
+  },
+  "required": ["request_id", "emitted_at", "emitted_by"]
+}
+

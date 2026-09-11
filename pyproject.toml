@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "base-platform"
+description = "Contracts, gate and release train for the base"
+requires-python = ">=3.11"
+dependencies = [
+    "jsonschema>=4.0,<5.0",
+    "pyyaml>=6.0,<7.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]

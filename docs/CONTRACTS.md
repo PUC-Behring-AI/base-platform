@@ -132,6 +132,23 @@ contract into documentation of what already happened.
 
 ## State
 
-**Prose and tables only.** Versioned schemas and executable fakes are stage E1 of
-the spec and do not exist yet. Until they do, this file is the only source, and
-it is normative.
+**C1, C5 and C6 are executable.** Their payload shapes live in `schemas/` as
+JSON Schema, with `tests/test_schemas.py` proving each one accepts what it
+should and rejects what it should — including the invariant that matters
+most, that a classification's `key_policy` can only ever be `local-only` or
+`external`.
+
+C2 has no schema here because its shape is OpenAI-compatible — defined
+externally, not by this repository. C3 has none because its shape is
+instance-specific by design. C4 has none because it is a metrics exposition
+format, not JSON, and its invariant (no payload) is enforced by each layer's
+own tests rather than by a base-level schema.
+
+This file remains the normative *description* of what each contract
+guarantees. `schemas/` is normative for the three payload *shapes* it covers;
+where the two would ever disagree, fix the disagreement, because a schema
+whose text and validator tell different stories loses whichever one nobody
+reads.
+
+Executable fakes — a running service per layer that speaks its side of these
+schemas — are the next slice, tracked per layer.
