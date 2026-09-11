@@ -25,8 +25,14 @@
 #                                                       absent, WARNS if the
 #                                                       version is not current
 #   - every *.yml / *.yaml file parses               → FAILS if any is invalid
-#   - a Python test suite, if one exists             → FAILS if red, SKIPPED
-#                                                       if there is none yet
+#   - a Python test suite, if one exists             → FAILS if red or if
+#                                                       pytest is missing,
+#                                                       SKIPPED if there is
+#                                                       none yet
+#   - Python lint (ruff), if any .py file exists      → FAILS if ruff finds
+#                                                       something, SKIPPED if
+#                                                       there is no code yet
+#                                                       or ruff is absent
 #   - shell scripts, if any exist                    → FAILS on syntax error,
 #                                                       SKIPPED if there are
 #                                                       none, shellcheck only
@@ -148,7 +154,36 @@ else
     _skip "sem pyproject.toml + tests/ — nada de Python para rodar ainda"
 fi
 
-# ── 5. Scripts de shell, se existirem ────────────────────────────────────────
+# ── 5. Lint Python, se houver arquivo .py ────────────────────────────────────
+# Achado ao escrever o primeiro consumidor real deste gate: ele checava a
+# suíte, mas nunca o lint — uma dívida que ficaria invisível até acumular em
+# três motores novos. Roda sobre TODO .py do repositório, não uma lista
+# mantida à mão: uma lista de arquivos "limpos" é o mesmo problema do
+# .gitignore por nome de arquivo, em outra roupa.
+
+_step "lint Python"
+py_files=()
+while IFS= read -r f; do
+    py_files+=("$f")
+done < <(find "$TARGET_DIR" \
+    -type d \( -name .git -o -name node_modules -o -name .venv -o -name __pycache__ \) -prune -o \
+    -type f -name '*.py' -print | sort)
+
+if [ "${#py_files[@]}" -eq 0 ]; then
+    _skip "nenhum arquivo Python neste repositório ainda"
+elif python3 -m ruff --version &>/dev/null; then
+    python3 -m ruff check "${py_files[@]}" || _fail "ruff apontou erros"
+    _ok "ruff limpo em ${#py_files[@]} arquivo(s)"
+else
+    # Skippable, matching shellcheck below and base-inference's own gate:
+    # lint tools skip when absent, the way style checks do everywhere in this
+    # base. Only the coverage floor (pytest-cov, in base-inference's gate)
+    # fails hard when missing — that one measures whether anything was
+    # verified at all, which lint does not.
+    _skip "ruff não instalado (pip install ruff)"
+fi
+
+# ── 6. Scripts de shell, se existirem ────────────────────────────────────────
 
 _step "scripts de shell"
 shell_files=()

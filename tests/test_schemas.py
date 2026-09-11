@@ -9,41 +9,27 @@ tests are not the ones actually run.
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
+from referencing import Registry
 
-SCHEMAS_DIR = Path(__file__).parent.parent / "schemas"
+from schemas.validate import build_registry, load_all_schemas
 
-
-def _load_all_schemas() -> dict[str, dict[str, Any]]:
-    schemas: dict[str, dict[str, Any]] = {}
-    for path in sorted(SCHEMAS_DIR.glob("*.schema.json")):
-        with path.open(encoding="utf-8") as fh:
-            schema = json.load(fh)
-        assert "$id" in schema, f"{path.name} has no $id — nothing can $ref it"
-        schemas[schema["$id"]] = schema
-    return schemas
+# Imported, not reimplemented: this repository is schemas/validate.py's own
+# first consumer, and duplicating its loader here to test it would be the
+# same defect the module's own docstring warns sibling repositories against.
 
 
 @pytest.fixture(scope="module")
 def schemas() -> dict[str, dict[str, Any]]:
-    return _load_all_schemas()
+    return load_all_schemas()
 
 
 @pytest.fixture(scope="module")
 def registry(schemas: dict[str, dict[str, Any]]) -> Registry:
-    resources = [Resource.from_contents(s) for s in schemas.values()]
-    # Every resource here has a declared $id (enforced by _load_all_schemas),
-    # so .id() is never None in practice; the cast is for the type checker,
-    # not a runtime guard.
-    pairs = [(r.id(), r) for r in resources]
-    assert all(uri is not None for uri, _ in pairs)
-    return Registry().with_resources(pairs)  # type: ignore[arg-type]
+    return build_registry(schemas)
 
 
 def _validator(schema: dict[str, Any], registry: Registry) -> Draft202012Validator:
