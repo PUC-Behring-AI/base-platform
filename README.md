@@ -45,9 +45,14 @@ prefix and its own five repositories, named `<prefix>-<layer>`.
 ## Running it
 
 ```bash
-docker compose -f compose.base.yaml up -d   # all five layers
+docker compose -f compose.base.yaml up -d   # every available engine + the backend
 docker compose up -d                        # the metrics backend alone
 ```
+
+Four of the five layers have a real service today (`base-knowledge`,
+`base-inference`, `base-agents`, and `base-interface`'s identity sidecar);
+`base-platform` itself only runs the backend. See each repository's own
+README for what its fake covers and what it deliberately does not.
 
 Each layer owns the services it runs, in its own repository, in its own
 `compose.yaml`. This repository's fragment holds the metrics backend and
