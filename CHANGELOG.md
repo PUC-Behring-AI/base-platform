@@ -20,11 +20,27 @@ minor carries breaking changes.
 ## [Unreleased]
 
 Redistributing the parts of the original monolithic server into the layers they
-belong to. Tracked as issue #14; this section grows one slice at a time and is
-tagged when the redistribution finishes.
+belong to (issue #14), and making the contracts executable instead of prose
+(issue #7). Both grow one slice at a time; this section is tagged when they
+finish.
 
 ### Added
 
+- **`schemas/` — C1, C5 and C6 are now JSON Schema, not just prose.**
+  `envelope.schema.json` and `classification.schema.json` are shared
+  fragments; `c1_evidence.schema.json` and `c6_provenance.schema.json`
+  compose them via `allOf`; `c5_identity.schema.json` holds one `$def` per
+  operation. `tests/test_schemas.py` proves each schema accepts a valid
+  instance and rejects the specific way it should fail — including that
+  `classification.key_policy` accepts exactly `local-only` and `external`
+  and nothing else, which is the actual security invariant C2 depends on.
+
+  C2, C3 and C4 have no schema here on purpose: C2 is OpenAI-compatible and
+  defined externally, C3 is instance-specific by design, and C4 is a metrics
+  exposition format whose "no payload" invariant belongs in each layer's own
+  tests. See `schemas/README.md`.
+- **This repository's own `pyproject.toml` and `tests/`** — dogfooding the
+  shared gate's Python-test path for the first time since it was written.
 - **The metrics backend lives here now** — `compose.yaml` runs Prometheus and
   Grafana, and `observability/` holds their configuration. Nothing about any
   particular layer: each layer drops its own scrape file into `scrape.d/` and

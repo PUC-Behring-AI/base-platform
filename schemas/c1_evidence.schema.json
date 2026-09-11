@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.base.internal/c1_evidence.schema.json",
+  "title": "C1 — evidence retrieval response",
+  "description": "knowledge -> agents. The invariant this schema exists to enforce: there is no read path without a classification. An optional field here would be equivalent to an absent one — see docs/CONTRACTS.md §C1.",
+  "type": "object",
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Propagated from the envelope of the request that asked for this evidence."
+    },
+    "passages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "classification": {
+            "$ref": "https://schemas.base.internal/classification.schema.json"
+          },
+          "provenance": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Where this passage came from — a document id, a URI, a table row reference. Instance-defined format."
+              },
+              "retrieved_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": ["source", "retrieved_at"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["content", "classification", "provenance"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["request_id", "passages"],
+  "additionalProperties": false
+}

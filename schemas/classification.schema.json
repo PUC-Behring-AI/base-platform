@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.base.internal/classification.schema.json",
+  "title": "Sensitivity classification",
+  "description": "The base does not fix the set of classification names — an instance declares its own classes in taxonomy.yaml (see ADAPTATION.md §4). What the base DOES fix is the shape: a name, and the key policy that name maps to. A payload carrying a classification whose key_policy is missing or is not one of the two allowed values is a malformed payload, not an instance choice.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Instance-defined class name, e.g. 'public' or 'client-confidential'. Opaque to the base."
+    },
+    "key_policy": {
+      "type": "string",
+      "enum": ["local-only", "external"],
+      "description": "local-only reaches only locally served models. external reaches third-party provider APIs. There is no third value: the whole point of C2's enforcement is that a credential is scoped to exactly one of these two universes."
+    }
+  },
+  "required": ["name", "key_policy"],
+  "additionalProperties": false
+}

@@ -7,8 +7,8 @@
 
 **Name:** base-platform
 **Layer:** `platform`
-**State:** contracts, gate and composition are real; executable schemas and
-fakes are not — see `docs/CONTRACTS.md` §State.
+**State:** contracts, gate, composition and the C1/C5/C6 schemas are real —
+see `docs/CONTRACTS.md` §State. Executable fakes per layer are next.
 
 ## What must not enter this repository
 
