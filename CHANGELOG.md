@@ -26,6 +26,27 @@ finish.
 
 ### Added
 
+- **`compose.base.yaml` composes all four available engines.**
+  `base-knowledge`, `base-inference`, `base-agents` and `base-interface`'s
+  identity sidecar all take part now, each mounting `schemas/` from here and
+  publishing its own scrape target into the metrics backend. Verified with
+  `docker compose config`, not assumed: every mount in the composed output
+  resolves to a path that actually exists on disk.
+- **Three fakes exist**, one per previously-documentation-only engine —
+  tracked here because they are what makes the schemas above load-bearing
+  rather than aspirational:
+  - `base-knowledge`: C1 evidence retrieval and C6 provenance storage.
+  - `base-agents`: the C2 routing decision (most-restrictive-wins across the
+    evidence used), C3, and the richest C6 record of the three.
+  - `base-interface`: a C5 identity sidecar replacing `docker exec` against
+    Open WebUI's database with a mounted-volume connection and a real test
+    suite — `base-inference`'s issue #37.
+
+  All three verified beyond their own test suites: built as Docker images,
+  run on a shared network, and exercised with real cross-container HTTP
+  calls — a confidential-content question routes `local-only` end to end,
+  from a real `base-agents` container asking a real `base-knowledge`
+  container, with the resulting provenance record retrievable afterward.
 - **`schemas/` — C1, C5 and C6 are now JSON Schema, not just prose.**
   `envelope.schema.json` and `classification.schema.json` are shared
   fragments; `c1_evidence.schema.json` and `c6_provenance.schema.json`
