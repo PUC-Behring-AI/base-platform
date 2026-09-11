@@ -40,6 +40,24 @@ tagged when the redistribution finishes.
   nothing into it: the mechanism looked finished and Prometheus would have
   scraped only itself. Verified now with `docker compose config`, which is the
   check that would have caught it.
+- **The shared gate**, `scripts/gate.sh` here plus a five-line wrapper any
+  consuming repository installs (`docs/ADAPTATION.md` §3). Closes issue #8.
+  It checks what is true of a repository regardless of how much code it has:
+  the living docs exist, the declared base version is known, every YAML file
+  parses — and, once a repository grows code, that its tests and shell
+  scripts pass. A repository with zero lines of code passes on the docs and
+  version checks alone, which is correct: the gate does not invent a floor to
+  look thorough.
+- **The version check reads `AGENTS.md` for a `# Base: vX.Y.Z` line** and
+  compares it to this repository's own `VERSION`. Missing the line fails the
+  gate — nothing else in the base makes "which version was this written
+  against?" answerable, and issue #9 was exactly that gap. An old version
+  warns rather than fails, because staying behind is the repository's decision
+  to make, per `docs/ADAPTATION.md` §8 — the gate's job is to make that
+  decision visible, not to make it.
+- **This repository's own `AGENTS.md`.** Every other repository in the base
+  pointed to `docs/AGENTS-base.md` and added its own rules; this one hosted
+  that file and never wrote the pointer.
 
 ### Removed
 
@@ -54,6 +72,21 @@ tagged when the redistribution finishes.
   `<prefix>-platform` README. See ADR-006, which records both discarded
   answers and the reason the question kept producing bad ones.
 
+### Fixed
+
+- **`git-guard`'s G6 check was never actually validating this repository.**
+  Its trigger, `.claude/portao`, did not exist here — a consequence of the
+  missing `AGENTS.md` above — so `gh pr create --repo base-platform` was
+  gated by whichever directory happened to be the shell's current one, not by
+  this repository's own state. Every merge up to this point passed a check
+  that was reading the wrong repository. Fixed together with the two items
+  above, since the bug is only visible once they exist to reveal it.
+- **`base-inference` keeps its own gate**, deliberately not migrated to the
+  shared one. It already had a real coverage floor, a bats suite and a
+  specific lint file list before the shared gate existed, and none of that was
+  worth risking for this pass. The shared gate is the floor a *new* engine
+  starts on, not a mandatory replacement for one that already does more.
+
 ### Notes
 
 - `prometheus.yml` here carries no scrape target beyond Prometheus itself, and
@@ -61,6 +94,10 @@ tagged when the redistribution finishes.
   is provenance, it is classified, and it goes to `knowledge` under C6.
 - Grafana refuses to start without `GRAFANA_ADMIN_PASSWORD`, rather than
   falling back to `admin:admin`.
+- The gate script avoids `mapfile`/`readarray`: macOS ships bash 3.2 by
+  default (GPLv2 licensing), which lacks both. Measured by running the gate
+  for the first time on this machine — it failed on line one of the part that
+  used them.
 
 ## [0.2.0] — 2026-09-10
 
