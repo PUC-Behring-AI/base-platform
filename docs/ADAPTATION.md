@@ -16,33 +16,15 @@ Two names to avoid, for reasons that only separate later:
 - **The client name.** It collides the day that client commissions a second
   platform.
 
-**The prefix is decoded in the instance's own `<prefix>-platform` README, and
-nowhere else.** Not here, and not in a central list.
-
-A contract code is opaque by design, so something has to decode it — but the
-answer is not a registry. The base cannot hold one: a base holding a list of
-who uses it has become a component of its largest consumer. And a central list
-elsewhere has to live somewhere, which is how the first attempt ended up
-publishing a client's contract number on the organisation's public page.
-
-An instance that documents itself needs no registry. Whoever can see
-`<prefix>-knowledge` can open `<prefix>-platform` and read what the prefix
-means. Whoever cannot see it has no need to know.
+**There is no central registry to add the prefix to.** An earlier version of
+this document said to register it in the organisation profile; that page is
+public, and doing so once already leaked a client's contract number. An
+instance documents itself — see step 6.
 
 ## 2. Create the five repositories
 
 `<prefix>-platform`, `-knowledge`, `-inference`, `-agents`, `-interface`.
 Private, unless explicitly decided otherwise.
-
-Create each one with an initial commit, so that the first content change can go
-through a pull request:
-
-    gh repo create PUC-Behring-AI/<repo> --private --add-readme \
-      --description "<one line>"
-
-Without `--add-readme` the repository has no branch at all, and GitHub then
-refuses `gh pr create` with `Base ref must be a branch`. The throwaway README it
-creates is replaced by the first pull request.
 
 Apply the organisation properties to each one:
 
@@ -50,10 +32,47 @@ Apply the organisation properties to each one:
     {"properties":[{"property_name":"layer","value":"<layer>"},{"property_name":"role","value":"instance"}]}
     JSON
 
-## 3. Fill in the extension points
+## 3. Install the gate
+
+Every repository gets a gate before it gets code. Two files, both boilerplate:
+
+**`scripts/gate.sh`** — a five-line wrapper delegating to the one in
+`base-platform`, which is checked out as a sibling directory (the same
+assumption `compose.base.yaml` makes):
+
+    #!/usr/bin/env bash
+    # scripts/gate.sh — thin wrapper. The real gate lives in base-platform and
+    # is shared across every repository in the base; duplicating its logic
+    # here is the serve_config.yaml defect multiplied by however many repos
+    # copy it. See base-platform/scripts/gate.sh for what it checks.
+    set -euo pipefail
+    HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    BASE_PLATFORM_DIR="${BASE_PLATFORM_DIR:-$HERE/../base-platform}"
+    if [ ! -x "$BASE_PLATFORM_DIR/scripts/gate.sh" ]; then
+        echo "base-platform not found at $BASE_PLATFORM_DIR — clone it as a sibling, or set BASE_PLATFORM_DIR" >&2
+        exit 1
+    fi
+    exec "$BASE_PLATFORM_DIR/scripts/gate.sh" "$HERE"
+
+Make it executable: `chmod +x scripts/gate.sh`.
+
+**`.claude/portao`** — one line, the path to it:
+
+    ./scripts/gate.sh
+
+Without this file, `git-guard`'s G6 check passes `gh pr create` silently —
+which is worse than failing loudly, because a merged PR then *looks* verified.
+
+Run it once before the first commit. On a repository with no code yet, it
+checks two things and passes: the living docs exist, and the base version is
+declared. That is not a weak gate — it is the whole floor a documentation-only
+repository has to clear, and inventing more would mean checking something that
+does not exist yet.
+
+## 4. Fill in the extension points
 
 This is the **declarative** half of adaptation. The other half is domain code,
-and section 4 covers it.
+and section 5 covers it.
 
 | Layer | The instance declares |
 |---|---|
@@ -61,7 +80,7 @@ and section 4 covers it.
 | `inference` | `models.yaml` (served models and key policy per class) |
 | `agents` | `flows/`, `prompts/`, `tools/` (MCP declarations) |
 | `interface` | `forms/`, `views/` |
-| `platform` | `schemas/` (C1–C4 payloads), `versions.yaml` |
+| `platform` | `schemas/` (C1–C6 payloads), `base-version.yaml` |
 
 **`taxonomy.yaml` is the most important file on that list.** It is where the
 routing rule becomes a parameter: each sensitivity class declares the key policy
@@ -77,7 +96,7 @@ The inference engine enforces the policy. The instance decides which classes
 exist and what each one permits — it does not decide *whether* the policy is
 enforced.
 
-## 4. Write the code that is only yours
+## 5. Write the code that is only yours
 
 Computation, validation, methodology rules. This lives in the instance repository
 and should not be squeezed into YAML.
@@ -90,7 +109,18 @@ Until then, write it in your own repository.
 An engine generalised from a single case stiffens what was hard and abstracts
 what was easy.
 
-## 5. Pin the base version
+## 6. Document yourself — there is no one else who will
+
+Write a README in `<prefix>-platform` that says what the prefix means, which
+client or grant funds the instance, and what each of the other four
+`<prefix>-*` repositories is for. Keep it private with the rest of the
+instance.
+
+Nothing decodes the prefix for you. Whoever can see `<prefix>-knowledge` can
+open `<prefix>-platform` and read what it means; whoever cannot see it has no
+need to.
+
+## 7. Pin the base version
 
 **The base has one version, and the five repositories are tagged together on
 it.** `base-platform/VERSION` holds it; `base-platform/CHANGELOG.md` says what
@@ -99,7 +129,7 @@ changed between one and the next.
 An instance records the version it runs on, in
 `<prefix>-platform/base-version.yaml`:
 
-    base: 0.1.0
+    base: 0.2.0
 
 One number, not five. A single version means the combination has been released
 together, so "was this set tested against itself?" has an answer. Per-layer
@@ -108,7 +138,7 @@ pinning would be more precise and would lose exactly that.
 The cost is real and worth knowing: a fix in one engine bumps the version of all
 five. That is deliberate — the alternative is five numbers nobody reconciles.
 
-## 6. Upgrading
+## 8. Upgrading
 
 The base does not push. An instance pulls, and this is what pulling looks like:
 
@@ -122,7 +152,12 @@ Staying behind is allowed and is sometimes correct. What is not allowed is not
 knowing: the pinned version is in a file, in git, so "which instances are behind
 0.2.0?" is a question a grep answers.
 
-## 7. Board the train
+The shared gate's version check works the same way for the base repositories
+themselves: it warns when an `AGENTS.md` declares an old version, and never
+fails a pull request over it. Whether to update is the repository's call, made
+knowingly — not the gate's to force.
+
+## 9. Board the train
 
 The release train departs weekly with whatever is ready. The instance boards it
 like any other.
