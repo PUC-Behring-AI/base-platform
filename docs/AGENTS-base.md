@@ -1,6 +1,6 @@
 # AGENTS-base.md — rules common to every repository in the base
 
-**Version: 1.0 · 2026-09-10**
+**Version: 1.1 · 2026-09-12**
 
 This file is the shared half of each repository's `AGENTS.md`. Every repository
 has its own `AGENTS.md` that **points here** and adds what is specific to it.
@@ -347,6 +347,51 @@ Two properties the gate must have:
 `.claude/issue-vizinhas` holds the heading that every new issue body must carry.
 An issue that never asks who it collides with is indistinguishable from one that
 asked and found nothing, and only one of the two is honest.
+
+## Cross-Repository Issue Tracing
+
+An instance need that traces to a base defect is declared `blocked_by`, from
+the instance issue to the base issue — never the reverse, and never as a
+sub-issue.
+
+**Direction is the whole rule.** `gh issue edit <instance-issue> --add-blocked-by
+<https://github.com/PUC-Behring-AI/base-*/issues/N>` links the two. Verified
+2026-09-12 against this organization: both directions round-trip correctly
+through the REST API (`issue_dependencies_summary` counts the dependency,
+`blockedBy`/`blocking` return the full cross-repo issue with its own
+`repository_url`) — but GitHub's own documentation only shows same-repo
+examples for this endpoint, and a community report describes a related bug
+in a different reproduction path. Treat this as working today, not as a
+documented guarantee. The fallback if it ever stops is a plain
+`owner/repo#N` mention, which *is* documented and creates the same
+cross-reference either way, just without the dependency count.
+
+**Never a sub-issue for this.** A sub-issue is "part of the parent's
+completion" — the wrong direction for an instance's issue against a base
+engine, whose own completion must never depend on any one instance's need.
+`--parent` decomposes a base epic into its own slices, same repository —
+cross-repo sub-issues work too (also verified), but that is not what this is
+for.
+
+**Chained dependency is how "and so on" works.** `<prefix>-agents#N`
+`blocked_by` `base-agents#M` `blocked_by` `base-platform#K`, one hop per
+repository boundary actually crossed. Nothing new to build: it is the same
+`blocked_by` edge, once per hop, and reading any issue in the chain shows
+both what blocks it and what it blocks.
+
+**The one thing this exposes across the boundary:** a base issue's own
+sidebar will show `blocking: <prefix>-*#N` — metadata, visible only on that
+issue's own page, never in a file the engine's code or docs carry. That is a
+materially weaker exposure than a client name inside a document or a schema
+(ADR-006), and is accepted here as the cost of the dependency count being
+real rather than prose.
+
+**A known tooling gap, not yet fixed.** The maintainer's `desbloqueadas.sh`
+and `vizinhanca.sh` (outside this repository) print a blocker as `#N`
+without naming its repository — ambiguous the moment a blocker crosses a
+repository boundary, since `#14` read while working in an instance repo
+could be misread as that repo's own issue. Fix by qualifying the number with
+`repository_url` whenever it does not match the repository being read.
 
 ---
 
