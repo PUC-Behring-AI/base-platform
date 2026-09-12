@@ -118,14 +118,19 @@ API. Verified 2026-09-12.
   qualifiers and references; an arbitrary RDF source may not). `base-knowledge`
   cannot assume C1's provenance requirement is satisfied by `kif` alone; it
   has to be checked against the actual source the layer indexes.
-- **`quail`** (`base-agents`) **does not exist** under the assumed description
-  ("AI toolkit for questionnaire analysis"). Two public projects share the
-  name — `ContextLab/quail` (free-recall memory experiment analysis, unrelated
-  domain) and `text-machine-lab/quail` (a reading-comprehension QA dataset, not
-  a library) — neither does what the dependency was assumed to do. The
-  questionnaire-analysis engine `base-agents` needs for its first domain has no
-  chosen library yet. This is not a gap to fill by picking one silently; it is
-  an open decision.
+- **`quail`** (`base-agents`) **was checked in the wrong place.** A public
+  GitHub/PyPI search (2026-09-12) found no match and concluded the name was
+  unfounded — wrong, because the real dependency is a **private repository
+  inside this organization**, not a public package. It ships a generic
+  questionnaire-modelling core (question, itemization, collection, graph)
+  alongside a domain-specific extension module in the same repository. The
+  generic core is a plausible `base-agents` dependency; the domain-specific
+  module is not — pulling in the whole package as-is would put
+  domain-specific code in a base engine, the exact mistake ADR-006 exists to
+  prevent. Which half `base-agents` actually depends on, and how a private
+  org repository is resolved as a dependency (not a public package index),
+  is unverified past a file listing — tracked in `base-agents`, not decided
+  here.
 
 ## Why it is this way
 
