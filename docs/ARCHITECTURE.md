@@ -103,6 +103,30 @@ and readable by anyone with operations access.
 **Emission is always the layer's own.** What is centralised is where records
 land, never who produces them.
 
+## External engine dependencies, verified
+
+Two libraries were assumed as engine dependencies before anyone read their
+API. Verified 2026-09-12.
+
+- **`kif`** (`base-knowledge`, IBM Research, Apache-2.0, `kif-lib` 0.13.0 on
+  PyPI) is real and matches its own description: a retrieval layer over
+  arbitrary RDF graphs (RDFLib, Jena, QLever, RDFox backends; mappings for
+  Wikidata, DBpedia, FactGrid, PubChem, UniProt), not a Wikidata-only client.
+  It serves the graph half of C1. It does **not** carry provenance as a
+  first-class field of its own — what provenance exists is inherited from
+  whatever the underlying source already carries (Wikidata's statements have
+  qualifiers and references; an arbitrary RDF source may not). `base-knowledge`
+  cannot assume C1's provenance requirement is satisfied by `kif` alone; it
+  has to be checked against the actual source the layer indexes.
+- **`quail`** (`base-agents`) **does not exist** under the assumed description
+  ("AI toolkit for questionnaire analysis"). Two public projects share the
+  name — `ContextLab/quail` (free-recall memory experiment analysis, unrelated
+  domain) and `text-machine-lab/quail` (a reading-comprehension QA dataset, not
+  a library) — neither does what the dependency was assumed to do. The
+  questionnaire-analysis engine `base-agents` needs for its first domain has no
+  chosen library yet. This is not a gap to fill by picking one silently; it is
+  an open decision.
+
 ## Why it is this way
 
 `docs/ADR.md` carries the decisions and the alternatives discarded, written
