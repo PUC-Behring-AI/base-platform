@@ -52,6 +52,17 @@ services:
     volumes:
       - ${BASE_ROOT:-..}/base-inference/observability/dashboards:/etc/grafana/provisioning/dashboards/inference:ro
 
+  # base-interface's open-webui depends on base-inference's litellm being
+  # healthy before it starts. Neither layer's own compose.yaml can declare
+  # that: base-interface's file does not define litellm, and a depends_on
+  # naming an undefined service makes Compose refuse the file even standalone
+  # (verified — `docker compose config` in base-interface alone errors on it
+  # otherwise). Only this file, which includes both, can add the wait back.
+  open-webui:
+    depends_on:
+      litellm:
+        condition: service_healthy
+
 # base-knowledge, base-agents and base-interface's fakes need base-platform's
 # schemas/ mounted, same as base-inference does not (it has no schema
 # dependency yet). Each layer's own compose.yaml already declares that mount
