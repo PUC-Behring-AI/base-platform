@@ -19,6 +19,30 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-14
+
+Found trying to make a real consumer (`base-inference/scripts/colleague.sh`)
+actually switch to the three operations `0.3.0` added: `create_account`
+could not carry a login credential or a role, and no operation could inspect
+an account at all, despite C5's own prose promising it since before there
+was a schema.
+
+### Added
+
+- **`BREAKING` — `create_account_request` gains optional `password` and
+  `role`; `create_account_response` gains a conditional `password`.** A
+  caller that supplies no password gets one generated and returned on first
+  creation — the only moment it is ever knowable, since nothing else in this
+  contract issues a login credential. An update to an existing account that
+  supplies neither field touches neither. `role` only ever applies at
+  creation. See `docs/CONTRACTS.md` §C5.
+- **`BREAKING` — `platform → interface` gains a fourth operation: inspect an
+  account.** `get_account_response` carries `display_name`, `role`,
+  `model_ids`, and `has_credential` — never the credential itself, only
+  whether one is linked. This replaces reading Open WebUI's `api_key` table
+  directly, which is what printed a prefix of the real secret before this
+  operation existed to answer the same question safely.
+
 ## [0.3.0] — 2026-09-14
 
 Redistributing the parts of the original monolithic server into the layers they

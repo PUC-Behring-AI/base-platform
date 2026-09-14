@@ -58,7 +58,17 @@
       "type": "object",
       "properties": {
         "principal_id": { "type": "string", "minLength": 1 },
-        "display_name": { "type": "string", "minLength": 1 }
+        "display_name": { "type": "string", "minLength": 1 },
+        "password": {
+          "type": "string",
+          "minLength": 8,
+          "description": "Optional. If omitted on first creation, the interface generates one and returns it in create_account_response -- there is no other operation in this contract that issues a login credential, so this is the only time it is ever knowable. Omitted on a call that updates an account which already exists, the password is left untouched."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "admin"],
+          "description": "Optional, defaults to 'user'. Applied only when the account is being created for the first time -- a call that updates an existing account never changes its role."
+        }
       },
       "required": ["principal_id", "display_name"],
       "additionalProperties": false
@@ -69,9 +79,37 @@
       "properties": {
         "account_id": { "type": "string", "minLength": 1 },
         "principal_id": { "type": "string", "minLength": 1 },
-        "created_at": { "type": "string", "format": "date-time" }
+        "created_at": { "type": "string", "format": "date-time" },
+        "password": {
+          "type": "string",
+          "description": "Present only when a credential was just set: generated on first creation if the caller did not supply one, or echoed back when the caller did. Absent when this call updated an existing account without touching its password."
+        }
       },
       "required": ["account_id", "principal_id", "created_at"],
+      "additionalProperties": false
+    },
+    "get_account_response": {
+      "title": "interface: account details",
+      "type": "object",
+      "properties": {
+        "account_id": { "type": "string", "minLength": 1 },
+        "principal_id": { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "has_credential": {
+          "type": "boolean",
+          "description": "Whether a virtual key has been linked via link_credential. Never the key itself, or any part of it -- this operation is a status check, not a second way to read a secret link_credential already wrote."
+        },
+        "model_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": [
+        "account_id",
+        "principal_id",
+        "display_name",
+        "role",
+        "has_credential",
+        "model_ids"
+      ],
       "additionalProperties": false
     },
     "grant_access_request": {

@@ -122,7 +122,30 @@ API is incomplete.
   look alike, and conflating them into one operation would hide which one
   happened.
 
-### C6 — provenance
+**BREAKING, 0.4.0.** `create_account` grows two optional request fields and
+one conditional response field, found trying to make an actual consumer
+switch to the three 0.3.0 operations: a login credential and a role, neither
+of which the account operation could carry before. `platform → interface`
+also grows a fourth operation, **inspect an account**, closing the gap
+between what C5's own prose already promised ("create, inspect and remove")
+and what only ever shipped (create and remove).
+
+- **A password is optional on the way in, conditional on the way out.** If the
+  caller supplies one, it is set; if not, and the account is being created for
+  the first time, the interface generates one — and must return it, because
+  nothing else in this contract issues a login credential, and a generated
+  secret nobody receives is not a smaller version of provisioning, it is a
+  broken one. An update to an existing account that supplies no password
+  touches nothing and returns none.
+- **A role is optional and create-time only.** Applied when the account is
+  created; ignored on an update to one that already exists, the same way the
+  password is.
+- **Inspecting an account never returns the credential itself, only
+  `has_credential`.** The operation this replaces — reading Open WebUI's
+  `api_key` table directly — printed a prefix of the real secret. A status
+  check does not need the secret to answer "is one linked", and carrying it
+  anyway would make this operation a second way to read what
+  `link_credential` already wrote once.
 
 One record per request, emitted by every layer that touched it, correlated by a
 request identifier that the interface generates and every layer propagates
