@@ -39,6 +39,12 @@ source, and require both bound teams to approve a change to it.
   deployment, and where each layer's observability fragment gets mounted. This
   file is the only one in the base allowed to name all five layers by
   directory path, because composing them *is* the platform layer's job.
+- **The cross-layer CLI** (`./base-platform`): a thin wrapper around
+  `docker compose -f compose.base.yaml` — `up`, `down`, `status`, `logs`.
+  Deliberately does not replace any single layer's own CLI: `base-inference`
+  keeps `./base-inference` for deploying, setting up and managing only that
+  layer, because that stays a real, separate operation. This CLI is for
+  operating all five together.
 - **The shared gate** (`scripts/gate.sh`): see below.
 
 ## The shared gate
@@ -65,8 +71,11 @@ on, not a replacement for one that already does more.
 ## Changing a contract
 
 1. Open a pull request here, editing `docs/CONTRACTS.md`.
-2. `CODEOWNERS` requires approval from the teams the contract binds — inert
-   today because those teams do not exist yet (issue #10).
+2. `CODEOWNERS` requires approval from the teams the contract binds — the
+   five teams exist, but review enforcement stays off while most of them
+   have a single member (the org owner), which would deadlock every PR
+   against its own author. See `CONTRIBUTING.md` for the current state per
+   team.
 3. The merge here is what authorises the layers to implement the change.
 4. If the change is breaking (any contract shape change is, by
    `CHANGELOG.md`'s own rule), bump `VERSION`, write the changelog entry, and

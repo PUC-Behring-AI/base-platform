@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# =============================================================================
+# base-platform — Cross-Layer Operations CLI
+# =============================================================================
+#
+# A thin wrapper around `docker compose -f compose.base.yaml`, which already
+# composes the five layers (see that file's own header). This CLI adds
+# nothing compose.base.yaml doesn't already do — it exists so that operating
+# the whole base doesn't require remembering the flag, and so a wrong sibling
+# directory name gets a diagnosis instead of compose's own "no such file or
+# directory" pointing at a path that only looks right (compose.base.yaml's
+# own comment names this exact failure mode).
+#
+# This is deliberately NOT a replacement for any single layer's own CLI.
+# base-inference keeps ./base-inference for deploying, setting up and
+# managing only that layer — that remains a real, separate operation someone
+# may want without the other four. This CLI is for the day someone wants all
+# five running together.
+#
+# Usage:
+#   ./base-platform up [--dry-run]     Start every layer (docker compose up -d)
+#   ./base-platform down                Stop every layer
+#   ./base-platform status              Show container status across all layers
+#   ./base-platform logs [service]      Follow logs (all services, or one)
+#   ./base-platform --help              This message
+#
+# BASE_ROOT overrides where the four sibling layer repositories are found —
+# same variable compose.base.yaml itself reads, default `..` (siblings of
+# this repository).
+#
+# See docs/ARCHITECTURE.md and compose.base.yaml for what "the five layers"
+# means and how the composition is assembled.
+# =============================================================================
+
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+COMPOSE_FILE="$REPO_DIR/compose.base.yaml"
+BASE_ROOT="${BASE_ROOT:-$REPO_DIR/..}"
+
+# ── Colours ───────────────────────────────────────────────────────────────
+
+if [ -t 1 ] && command -v tput &>/dev/null; then
+    BOLD="$(tput bold)"
+    GREEN="$(tput setaf 2)"
+    YELLOW="$(tput setaf 3)"
+    RED="$(tput setaf 1)"
+    CYAN="$(tput setaf 6)"
+    RESET="$(tput sgr0)"
+else
+    BOLD="" GREEN="" YELLOW="" RED="" CYAN="" RESET=""
+fi
+
+_info()  { echo "${GREEN}[✓]${RESET} $*"; }
+_error() { echo "${RED}[✗]${RESET} $*" >&2; }
+
+_help() {
+    # Prints only the leading header docblock, not every "# " line in the
+    # file — base-inference's own _help() scans the whole script and leaks
+    # later section-divider comments ("── Colours ──" and so on) into its
+    # own --help output. Stopping at the first non-comment line avoids
+    # inheriting that.
+    awk '
+        /^#!/ { next }
+        /^# =+$/ { next }
+        /^#$/ { next }
+        /^#/ { sub(/^# ?/, ""); print; next }
+        { exit }
+    ' "$0"
+    exit 0
+}
+
+# ── Sibling check ────────────────────────────────────────────────────────
+# The same failure compose.base.yaml's own header comment names, diagnosed
+# before compose gets a chance to print "no such file or directory" against
+# a path that looks right. Not a replacement for compose's own error — a
+# faster way to the same answer.
+
+_check_siblings() {
+    local missing=()
+    local layer
+    for layer in base-knowledge base-inference base-agents base-interface; do
+        [ -d "$BASE_ROOT/$layer" ] || missing+=("$layer")
+    done
+    if [ "${#missing[@]}" -gt 0 ]; then
+        _error "Missing sibling repositories under ${BASE_ROOT}: ${missing[*]}"
+        echo "  Clone them as siblings of base-platform, or set BASE_ROOT." >&2
+        echo "  A directory renamed after a repo rename (e.g. idia-server" >&2
+        echo "  instead of base-inference) will not be found here." >&2
+        exit 1
+    fi
+}
+
+# ── Commands ──────────────────────────────────────────────────────────────
+
+_up() {
+    local dry_run="false"
+    for arg in "$@"; do
+        case "$arg" in
+            --dry-run) dry_run="true" ;;
+            *) _error "Unknown flag for 'up': $arg"; exit 1 ;;
+        esac
+    done
+
+    if [ "$dry_run" = "true" ]; then
+        echo "${BOLD}Would run:${RESET}"
+        echo "  BASE_ROOT=$BASE_ROOT docker compose -f $COMPOSE_FILE up -d"
+        echo ""
+        echo "(sibling repositories not checked in dry-run mode)"
+        exit 0
+    fi
+
+    _check_siblings
+    BASE_ROOT="$BASE_ROOT" docker compose -f "$COMPOSE_FILE" up -d
+    _info "All five layers requested. Check with: ./base-platform status"
+}
+
+_down() {
+    BASE_ROOT="$BASE_ROOT" docker compose -f "$COMPOSE_FILE" down
+}
+
+_status() {
+    BASE_ROOT="$BASE_ROOT" docker compose -f "$COMPOSE_FILE" ps
+}
+
+_logs() {
+    BASE_ROOT="$BASE_ROOT" docker compose -f "$COMPOSE_FILE" logs -f "$@"
+}
+
+# ── Dispatch ──────────────────────────────────────────────────────────────
+
+case "${1:-}" in
+    up)             shift; _up "$@" ;;
+    down)           _down ;;
+    status)         _status ;;
+    logs)           shift; _logs "$@" ;;
+    --help|-h|help) _help ;;
+    "")
+        echo "${BOLD}base-platform CLI${RESET} — run ${CYAN}./base-platform --help${RESET} for usage"
+        echo ""
+        echo "Quick start:"
+        echo "  ${CYAN}./base-platform up${RESET}       # start every layer"
+        echo "  ${CYAN}./base-platform status${RESET}   # check what's running"
+        ;;
+    *)
+        _error "Unknown command: '${1}'"
+        echo "  Run: ./base-platform --help" >&2
+        exit 1
+        ;;
+esac
