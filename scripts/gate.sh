@@ -193,10 +193,13 @@ done < <(find "$TARGET_DIR" \
     -type d \( -name .git -o -name node_modules -o -name .venv \) -prune -o \
     -type f -name '*.sh' -print | sort)
 # Um executável na raiz sem extensão (convenção deste projeto para o CLI de
-# operação) também conta, se existir.
-if [ -x "$TARGET_DIR/idia" ]; then
-    shell_files+=("$TARGET_DIR/idia")
-fi
+# operação) também conta, se existir — por nome genérico, não fixo: "idia"
+# era o nome antes do rename para base-inference, e um novo CLI (ex.
+# base-platform) nasceria invisível para este portão se o nome ficasse
+# hardcoded de novo.
+while IFS= read -r f; do
+    shell_files+=("$f")
+done < <(find "$TARGET_DIR" -maxdepth 1 -type f -perm -u+x ! -name '*.*' -print)
 
 if [ "${#shell_files[@]}" -eq 0 ]; then
     _skip "nenhum script de shell neste repositório ainda"
