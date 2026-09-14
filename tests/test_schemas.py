@@ -233,6 +233,35 @@ def test_c6_provenance_rejects_missing_payload(
             {"principal_id": "user-42", "display_name": "Jane Researcher"},
         ),
         (
+            "create_account_request",
+            {
+                "principal_id": "user-42",
+                "display_name": "Jane Researcher",
+                "password": "correct-horse-battery",
+                "role": "admin",
+            },
+        ),
+        (
+            "create_account_response",
+            {
+                "account_id": "acct-1",
+                "principal_id": "user-42",
+                "created_at": "2026-09-14T10:00:00Z",
+                "password": "generated-or-echoed",
+            },
+        ),
+        (
+            "get_account_response",
+            {
+                "account_id": "acct-1",
+                "principal_id": "user-42",
+                "display_name": "Jane Researcher",
+                "role": "user",
+                "has_credential": True,
+                "model_ids": ["local-mistral-7b"],
+            },
+        ),
+        (
             "grant_access_request",
             {"principal_id": "user-42", "model_id": "local-mistral-7b"},
         ),
@@ -294,4 +323,47 @@ def test_c5_configure_upstream_rejects_missing_discovery_key(registry: Registry)
     with pytest.raises(Exception):
         Draft202012Validator(schema, registry=registry).validate(
             {"api_base_url": "http://litellm:4000/v1"}
+        )
+
+
+def test_c5_create_account_rejects_a_too_short_password(registry: Registry) -> None:
+    """A password short enough to type by accident is not a smaller version
+    of a real one -- see the minLength this shares with nothing else in the
+    schema by coincidence."""
+    schema = {
+        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/create_account_request"
+    }
+    with pytest.raises(Exception):
+        Draft202012Validator(schema, registry=registry).validate(
+            {"principal_id": "user-42", "display_name": "Jane", "password": "short"}
+        )
+
+
+def test_c5_create_account_rejects_an_unknown_role(registry: Registry) -> None:
+    schema = {
+        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/create_account_request"
+    }
+    with pytest.raises(Exception):
+        Draft202012Validator(schema, registry=registry).validate(
+            {"principal_id": "user-42", "display_name": "Jane", "role": "superadmin"}
+        )
+
+
+def test_c5_get_account_rejects_missing_has_credential(registry: Registry) -> None:
+    """has_credential is the one field this response exists to carry safely
+    -- the alternative colleague.sh's original docker exec status check used
+    was printing a prefix of the actual key, which this operation exists to
+    stop doing."""
+    schema = {
+        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/get_account_response"
+    }
+    with pytest.raises(Exception):
+        Draft202012Validator(schema, registry=registry).validate(
+            {
+                "account_id": "acct-1",
+                "principal_id": "user-42",
+                "display_name": "Jane",
+                "role": "user",
+                "model_ids": [],
+            }
         )
