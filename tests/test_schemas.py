@@ -67,7 +67,8 @@ def test_envelope_accepts_a_minimal_valid_instance(
         "emitted_at": "2026-09-11T10:00:00Z",
         "emitted_by": "agents",
     }
-    _validator(schemas["https://schemas.base.internal/envelope.schema.json"], registry).validate(instance)
+    envelope_schema = schemas["https://schemas.base.internal/envelope.schema.json"]
+    _validator(envelope_schema, registry).validate(instance)
 
 
 def test_envelope_rejects_an_unknown_layer_name(
@@ -78,8 +79,9 @@ def test_envelope_rejects_an_unknown_layer_name(
         "emitted_at": "2026-09-11T10:00:00Z",
         "emitted_by": "not-a-real-layer",
     }
+    envelope_schema = schemas["https://schemas.base.internal/envelope.schema.json"]
     with pytest.raises(Exception):
-        _validator(schemas["https://schemas.base.internal/envelope.schema.json"], registry).validate(instance)
+        _validator(envelope_schema, registry).validate(instance)
 
 
 # ── classification.schema.json — the security-relevant invariant ────────

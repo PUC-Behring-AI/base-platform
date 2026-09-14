@@ -7,7 +7,8 @@ directory on disk, overridable with BASE_PLATFORM_DIR.
 
     import os, sys
     from pathlib import Path
-    base_platform = Path(os.environ.get("BASE_PLATFORM_DIR", Path(__file__).parent.parent / "base-platform"))
+    default_dir = Path(__file__).parent.parent / "base-platform"
+    base_platform = Path(os.environ.get("BASE_PLATFORM_DIR", default_dir))
     sys.path.insert(0, str(base_platform))
     from schemas.validate import validator_for
 
