@@ -1,0 +1,30 @@
+name: gate
+# The shared gate, run by the runner rather than asserted by whoever opens the
+# PR. This repository IS base-platform, so no sibling checkout is needed — the
+# four layer repositories each carry a thin variant of this file that also
+# checks out base-platform, matching the sibling-directory assumption
+# scripts/gate.sh and compose.base.yaml both make. See docs/ADAPTATION.md §3.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install gate dependencies
+        run: pip install pytest pyyaml jsonschema ruff
+
+      - name: Run the shared gate
+        run: ./scripts/gate.sh

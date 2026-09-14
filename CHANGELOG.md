@@ -26,6 +26,17 @@ finish.
 
 ### Added
 
+- **The gate now runs in CI, on every pull request, in all five repositories**
+  (`.github/workflows/gate.yml`), instead of depending on a `PreToolUse` hook
+  installed on one machine. `.github/ISSUE_TEMPLATE/issue.md` carries the
+  `### Vizinhas` heading, and `.github/workflows/issue-hygiene.yml` flags a new
+  issue missing it — the closest equivalent to a pre-creation check the issue
+  API allows. `.github/pull_request_template.md` carries the merge checklist.
+  `CONTRIBUTING.md`, here, is now the one place the issue and merge procedure
+  is written down; the other four repositories carry a short version pointing
+  back to it. `docs/ADAPTATION.md` §3 and `docs/AGENTS-base.md` §"The local
+  gate" describe the new mechanism instead of the hook. `AGENTS-base.md` moves
+  to **v1.2**.
 - **`compose.base.yaml` composes all four available engines.**
   `base-knowledge`, `base-inference`, `base-agents` and `base-interface`'s
   identity sidecar all take part now, each mounting `schemas/` from here and
@@ -98,6 +109,24 @@ finish.
 
 ### Removed
 
+- **`.claude/portao`, `.claude/issue-vizinhas`, and the `git-guard --stamp`
+  call inside `scripts/gate.sh`**, in all five repositories — configuration
+  specific to one person's machine, versioned inside a shared repository. A
+  clone without that hook installed got a portão that printed "passou" and
+  stamped nothing; see `.github/workflows/gate.yml` above for the replacement.
+- **This repository's own git history carried the same leak the item below
+  already describes, a second time, inside `base-platform` itself rather
+  than on the organisation's profile page.** Two spec files
+  (`specs/2026-09-10-arquitetura-base-cinco-camadas-design.md`,
+  `specs/2026-09-10-plano-documentacao-base.md`) and six historical revisions
+  of `README.md` and `docs/ADAPTATION.md` — all already superseded by commit
+  `4a3bb54` — named the client, the contract number, and the confidential
+  methodology, and remained reachable from `origin/main` regardless. Purged
+  from every ref with `git filter-repo` on 2026-09-14; `v0.1.0` and `v0.2.0`
+  were retagged onto the rewritten history. This repository was private for
+  the entire time the leak was reachable; it is made public only after this
+  purge, precisely so that making it public does not repeat the incident a
+  third time.
 - **The central instance registry, and the page that held it.** Version 0.2.0
   moved the list of instance prefixes out of the base and onto the
   organisation's profile page. That page is public: it turned an internal

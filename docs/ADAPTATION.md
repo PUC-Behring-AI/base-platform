@@ -34,7 +34,10 @@ Apply the organisation properties to each one:
 
 ## 3. Install the gate
 
-Every repository gets a gate before it gets code. Two files, both boilerplate:
+Every repository gets a gate before it gets code, and the gate has to run
+somewhere nobody has to configure by hand — a `PreToolUse` hook watching one
+machine is not a gate a second contributor's clone can satisfy. Three files,
+all boilerplate:
 
 **`scripts/gate.sh`** — a five-line wrapper delegating to the one in
 `base-platform`, which is checked out as a sibling directory (the same
@@ -56,18 +59,46 @@ assumption `compose.base.yaml` makes):
 
 Make it executable: `chmod +x scripts/gate.sh`.
 
-**`.claude/portao`** — one line, the path to it:
+**`.github/workflows/gate.yml`** — checks out this repository and
+`base-platform` as siblings, then runs `./scripts/gate.sh`, on every pull
+request:
 
-    ./scripts/gate.sh
+    name: gate
+    on: [pull_request]
+    permissions:
+      contents: read
+    jobs:
+      gate:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+            with:
+              path: <this-repo-name>
+          - uses: actions/checkout@v4
+            with:
+              repository: PUC-Behring-AI/base-platform
+              path: base-platform
+          - uses: actions/setup-python@v5
+            with:
+              python-version: "3.11"
+          - run: pip install pytest pyyaml jsonschema ruff
+          - run: ./scripts/gate.sh
+            working-directory: <this-repo-name>
 
-Without this file, `git-guard`'s G6 check passes `gh pr create` silently —
-which is worse than failing loudly, because a merged PR then *looks* verified.
+  (`base-platform`'s own workflow skips the sibling checkout — it is already
+  itself.) The runner executes the script; nothing about "the gate ran" is
+  taken on anyone's word.
 
-Run it once before the first commit. On a repository with no code yet, it
-checks two things and passes: the living docs exist, and the base version is
-declared. That is not a weak gate — it is the whole floor a documentation-only
-repository has to clear, and inventing more would mean checking something that
-does not exist yet.
+**`CONTRIBUTING.md`** — a short file pointing at
+`base-platform/CONTRIBUTING.md` for the procedure shared by every repository
+(issue and pull request conventions, the `### Vizinhas` heading, cross-repo
+`blocked_by`), plus whatever is only this repository's own.
+
+Run the gate once before the first commit. On a repository with no code yet,
+it checks two things and passes: the living docs exist, and the base version
+is declared. That is not a weak gate — it is the whole floor a
+documentation-only repository has to clear, and inventing more would mean
+checking something that does not exist yet.
 
 ## 4. Fill in the extension points
 

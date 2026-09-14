@@ -1,6 +1,6 @@
 # AGENTS-base.md — rules common to every repository in the base
 
-**Version: 1.1 · 2026-09-12**
+**Version: 1.2 · 2026-09-14**
 
 This file is the shared half of each repository's `AGENTS.md`. Every repository
 has its own `AGENTS.md` that **points here** and adds what is specific to it.
@@ -330,23 +330,32 @@ what lets the suite run clean from the first phase onward.
 
 ## The local gate
 
-Every repository that has a gate command carries `.claude/portao` holding that
-command's path. A `PreToolUse` hook reads that file and refuses `gh pr create`
-without a recent gate run. **With no file, the pull request passes ungated and
-nothing says so** — which is the one absence invisible from both sides.
+Every repository that has a gate command carries `scripts/gate.sh`, and a
+`.github/workflows/gate.yml` that runs it on every pull request. **The runner is
+the one that has to run it, not whoever opens the PR** — a marker produced by
+the same machine that would benefit from skipping the check proves nothing,
+and a repository's own `CHANGELOG.md` already records what that cost once: a
+check that read a stamp instead of running anything passed a repository for
+weeks without ever validating it.
 
-The gate belongs to the repository, not to the machine, so it is committed.
+The gate belongs to the repository, not to a machine or an account, so both
+files are committed and neither depends on anything installed outside the
+checkout.
 
 Two properties the gate must have:
 
-- **It records its own marker**, or it blocks the pull request it just approved.
+- **The CI is a required check**, wherever branch protection is available to
+  require one. Where it is not (see `docs/ADAPTATION.md` on plan limits), the
+  workflow still runs and reports on the PR — visible, even when not blocking.
 - **A missing tool fails the step, it does not skip it** — at least for the
   coverage floor. Skipping a floor is approving a pull request having measured
   nothing, and printing green over it.
 
-`.claude/issue-vizinhas` holds the heading that every new issue body must carry.
-An issue that never asks who it collides with is indistinguishable from one that
-asked and found nothing, and only one of the two is honest.
+`.github/ISSUE_TEMPLATE/` carries the heading that every new issue body must
+carry (`### Vizinhas`), and `.github/pull_request_template.md` carries the
+checklist a pull request confirms before it is opened. An issue that never
+asks who it collides with is indistinguishable from one that asked and found
+nothing, and only one of the two is honest.
 
 ## Cross-Repository Issue Tracing
 
@@ -386,12 +395,11 @@ materially weaker exposure than a client name inside a document or a schema
 (ADR-006), and is accepted here as the cost of the dependency count being
 real rather than prose.
 
-**A known tooling gap, not yet fixed.** The maintainer's `desbloqueadas.sh`
-and `vizinhanca.sh` (outside this repository) print a blocker as `#N`
-without naming its repository — ambiguous the moment a blocker crosses a
-repository boundary, since `#14` read while working in an instance repo
-could be misread as that repo's own issue. Fix by qualifying the number with
-`repository_url` whenever it does not match the repository being read.
+**A known tooling gap, not yet fixed.** Any script that lists blockers by
+number alone is ambiguous the moment a blocker crosses a repository boundary,
+since `#14` read while working in an instance repo could be misread as that
+repo's own issue. A tool built against this convention qualifies the number
+with `repository_url` whenever it does not match the repository being read.
 
 ---
 
@@ -405,10 +413,14 @@ could be misread as that repo's own issue. Fix by qualifying the number with
   as a record, and a squash destroys the messages carrying the *why*.
 - `--force-with-lease`, never `--force`.
 - If the default branch breaks, revert first and fix afterwards.
-- Run the local gate before opening the pull request, not after. A pull request
-  opened without it turns CI into a discovery tool instead of a confirmation.
-- **If a hook, guard or permission check refuses a command, stop and report it.**
-  The escape hatch it names is for the human, not for the session. This is
-  written here because it was violated on 2026-09-10, during the creation of
-  these very repositories: two sessions hit a guard, used its escape hatch, and
-  their repositories had to be deleted and rebuilt.
+- Run `./scripts/gate.sh` before opening the pull request, not after. The CI
+  runs the same script — opening a PR without running it locally first turns
+  CI into a discovery tool instead of a confirmation, and costs a round trip.
+- **If the gate refuses a command or the CI fails, stop and report it.** The
+  fix is to make the check pass, not to route around it. This is written here
+  because it was violated on 2026-09-10, during the creation of these very
+  repositories: two sessions hit a guard, used its escape hatch, and their
+  repositories had to be deleted and rebuilt. A local guard specific to one
+  machine no longer exists in this base to be escaped — the CI is what a
+  contributor on any machine has to satisfy, and there is no local
+  equivalent of an escape hatch for a required check.
