@@ -236,6 +236,18 @@ def test_c6_provenance_rejects_missing_payload(
             "grant_access_request",
             {"principal_id": "user-42", "model_id": "local-mistral-7b"},
         ),
+        (
+            "link_credential_request",
+            {"principal_id": "user-42", "virtual_key": "sk-abc123"},
+        ),
+        (
+            "ensure_model_catalog_entry_request",
+            {"model_id": "local-mistral-7b", "display_name": "Mistral 7B (local)"},
+        ),
+        (
+            "configure_upstream_request",
+            {"api_base_url": "http://litellm:4000/v1", "discovery_key": "sk-discovery"},
+        ),
     ],
 )
 def test_c5_definition_accepts_its_valid_instance(
@@ -262,3 +274,24 @@ def test_c5_issue_credential_rejects_an_unknown_key_policy(registry: Registry) -
     }
     with pytest.raises(Exception):
         Draft202012Validator(schema, registry=registry).validate(instance)
+
+
+def test_c5_link_credential_rejects_missing_virtual_key(registry: Registry) -> None:
+    """The whole point of this operation is carrying the secret across the
+    boundary -- an instance missing it is not a smaller version of the
+    request, it is a different, useless one."""
+    schema = {
+        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/link_credential_request"
+    }
+    with pytest.raises(Exception):
+        Draft202012Validator(schema, registry=registry).validate({"principal_id": "user-42"})
+
+
+def test_c5_configure_upstream_rejects_missing_discovery_key(registry: Registry) -> None:
+    schema = {
+        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/configure_upstream_request"
+    }
+    with pytest.raises(Exception):
+        Draft202012Validator(schema, registry=registry).validate(
+            {"api_base_url": "http://litellm:4000/v1"}
+        )

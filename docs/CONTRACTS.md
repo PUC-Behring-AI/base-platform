@@ -87,7 +87,7 @@ contract could be violated because none existed.
 | Direction | The layer must expose |
 |---|---|
 | `platform` → `inference` | Issue, inspect and revoke a credential, with its budget and rate limits |
-| `platform` → `interface` | Create, inspect and remove an account, and grant or revoke access to a model |
+| `platform` → `interface` | Create, inspect and remove an account; grant or revoke access to a model; link an issued credential to an account; register a model in the visibility catalog; configure the upstream gateway once at deploy time |
 
 **No layer writes into another layer's storage.** Not through a database file,
 not through a container name, not "just for provisioning". A layer that cannot
@@ -96,6 +96,31 @@ a defect in the layer, not a licence to go around it.
 
 `platform` orchestrates the two calls and owns the rollback when the second
 fails after the first succeeded.
+
+**BREAKING, 0.3.0.** The three operations added to `interface` close a gap
+`0.2.0` left open: a consuming layer's own account-creation script could call
+`create_account` and `grant_access` and still have three real reasons left to
+reach into the interface's storage directly — linking an issued credential to
+that account, registering the account's models in the visibility catalog, and
+the one-time upstream configuration a fresh deployment needs before any of it
+is reachable. Each is now its own operation, for the same reason the first two
+were: a layer that cannot be provisioned through its own API is a layer whose
+API is incomplete.
+
+- **Linking a credential** is not the same operation as issuing one. The
+  credential is minted by `inference` (`issue_credential`); this operation
+  hands the resulting secret to `interface` so it can call the gateway on the
+  account's behalf. Two operations, two layers, one still-external secret.
+- **The model catalog entry is global and idempotent**, not per-account — a
+  deployment registers a model once, when it becomes available, not once per
+  person provisioned onto it. A caller that repeats it per account is not
+  violating the contract; it is just calling it far more often than the data
+  changes.
+- **Configuring the upstream gateway is a deploy-time bootstrap**, not
+  provisioning. A deployment that skips it has no model dropdown and every
+  account it provisions is otherwise complete — the two failure modes do not
+  look alike, and conflating them into one operation would hide which one
+  happened.
 
 ### C6 — provenance
 
