@@ -19,13 +19,55 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-14
+
 Redistributing the parts of the original monolithic server into the layers they
-belong to (issue #14), and making the contracts executable instead of prose
-(issue #7). Both grow one slice at a time; this section is tagged when they
-finish.
+belong to (issue #14, recreated as #2 — see the repository history note
+below), and making the contracts executable instead of prose (issue #7,
+recreated as #3). Both grow one slice at a time; this is the first tag since
+0.2.0.
+
+### Note on this repository's history
+
+`base-platform` was deleted and recreated on 2026-09-14: `git filter-repo`
+cleaned a client/contract leak from `refs/heads/*` and `refs/tags/*`, but
+seven already-merged pull requests still exposed it through
+`refs/pull/N/head`, which no force-push touches. Recreating was the only way
+to make the repository public without repeating the leak a third time. The
+six issues open at the time were recreated (one open, five closed); PR
+history before this point is gone. Everything in `[0.2.0]` and `[0.1.0]`
+below describes what those PRs did — the entries are accurate, only their
+own PR links no longer resolve.
 
 ### Added
 
+- **`BREAKING` — C5 gains three operations on the `interface` side**: link an
+  issued credential to an account, register a model in the visibility
+  catalog, and configure the upstream gateway once at deploy time. `0.2.0`
+  closed the gap between "a contract exists" and "the contract has a
+  schema" for account creation and model grants; it left open the three
+  remaining reasons a consuming layer's provisioning script still had to
+  reach into `interface`'s storage directly. See `docs/CONTRACTS.md` §C5 for
+  the full reasoning behind each of the three.
+- **The gate now runs in CI, on every pull request, in all five repositories**
+  (`.github/workflows/gate.yml`), instead of depending on a `PreToolUse` hook
+  installed on one machine. `.github/ISSUE_TEMPLATE/issue.md` carries the
+  `### Vizinhas` heading, and `.github/workflows/issue-hygiene.yml` flags a new
+  issue missing it — the closest equivalent to a pre-creation check the issue
+  API allows. `.github/pull_request_template.md` carries the merge checklist.
+  `CONTRIBUTING.md`, here, is now the one place the issue and merge procedure
+  is written down; the other four repositories carry a short version pointing
+  back to it. `docs/ADAPTATION.md` §3 and `docs/AGENTS-base.md` §"The local
+  gate" describe the new mechanism instead of the hook. `AGENTS-base.md` moves
+  to **v1.2**.
+- **`./base-platform`**, a thin CLI wrapping `docker compose -f
+  compose.base.yaml` — `up`, `down`, `status`, `logs`. Does not replace any
+  single layer's own CLI; `base-inference` keeps `./base-inference` for its
+  own deploy/setup/service lifecycle. Closes the CLI half of issue #2's
+  allocation table, which the original redistribution issue could not have
+  gotten right without first reading what `./base-inference` actually does
+  (it is entirely specific to that layer — moving it here would have broken
+  it, not relocated it).
 - **The gate now runs in CI, on every pull request, in all five repositories**
   (`.github/workflows/gate.yml`), instead of depending on a `PreToolUse` hook
   installed on one machine. `.github/ISSUE_TEMPLATE/issue.md` carries the

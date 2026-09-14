@@ -93,6 +93,42 @@
       },
       "required": ["principal_id", "model_id"],
       "additionalProperties": false
+    },
+    "link_credential_request": {
+      "title": "interface: link an issued credential to an account",
+      "type": "object",
+      "properties": {
+        "principal_id": { "type": "string", "minLength": 1 },
+        "virtual_key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The actual secret the inference layer issued (this contract's issue_credential_response does not carry it back — LiteLLM's /key/generate does, directly, to whoever requested it). The interface stores it to call the gateway on the account's behalf; this operation is what replaces writing that secret into the interface's database by any means other than its own API."
+        }
+      },
+      "required": ["principal_id", "virtual_key"],
+      "additionalProperties": false
+    },
+    "ensure_model_catalog_entry_request": {
+      "title": "interface: register a model in the visibility catalog",
+      "type": "object",
+      "properties": {
+        "model_id": { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string", "minLength": 1 }
+      },
+      "required": ["model_id"],
+      "additionalProperties": false,
+      "description": "Global and idempotent: one call per model that exists in the deployment, not one per account. A caller that repeats this call for every account it provisions is not wrong -- the operation is safe to repeat -- but it is calling it far more often than the data changes."
+    },
+    "configure_upstream_request": {
+      "title": "interface: point the interface at the inference gateway",
+      "type": "object",
+      "properties": {
+        "api_base_url": { "type": "string", "minLength": 1, "format": "uri" },
+        "discovery_key": { "type": "string", "minLength": 1 }
+      },
+      "required": ["api_base_url", "discovery_key"],
+      "additionalProperties": false,
+      "description": "Global, one-time, deploy-time bootstrap -- not part of provisioning any single account. A deployment that never calls this has no model dropdown, and every account it provisions is otherwise complete."
     }
   }
 }
