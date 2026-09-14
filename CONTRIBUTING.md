@@ -95,31 +95,26 @@ count toward `issue_dependencies_summary`. Declare it in the field.
 - If the gate refuses locally, or the CI fails, the fix is to make the check
   pass — not to route around it.
 
-### A known gap in what this procedure can enforce today
+### What is actually protected today, and what isn't (checked 2026-09-14)
 
-GitHub's branch protection and rulesets require a paid plan on a private
-repository (verified 2026-09-14: `base-knowledge`, `base-agents`,
-`base-interface` all return HTTP 403 on both endpoints; only `base-inference`,
-public, accepts them). Until the organisation is on a plan that lifts that
-limit, or a repository is public:
+Deliberately not turned on in this pass — this is a record of the current
+state and what each gap needs, not a todo list this repository's tooling can
+close on its own.
 
-- **The CI runs and reports on every pull request, but is not a required
-  check** on the four private repositories — it can be merged around. It is
-  not silent, though: a red check on the PR page is a fact anyone reviewing
-  can see, which is already stronger than the hook it replaces, whose failure
-  was invisible to everyone but the machine it ran on.
-- **`CODEOWNERS`, in `base-platform`, is inert for the same reason** — GitHub
-  also forbids a PR author from approving their own PR, and every one of the
-  five layer teams has exactly one member today (the organisation owner), so
-  requiring review would deadlock every PR. Turn on required review once a
-  team has a second member who is not also the one opening the PR.
-- **`allow_auto_merge` and `delete_branch_on_merge` are both `false`, and
-  `allow_merge_commit`/`allow_squash_merge` are both `true`**, on all five
-  repositories — the opposite of the rebase-only rule above. Nothing in this
-  repository can change that; it is a setting on each GitHub repository,
-  changed under **Settings → General → Pull Requests**, and it is the
-  organisation owner's call to make, not a session's.
+| Protection | State | What it needs |
+|---|---|---|
+| Required status check (`gate`) on `base-platform` | **Off** | Nothing — this repository is public, rulesets are free here, and no other decision blocks it. The one protection on this list with no dependency. |
+| Required status check on the other four | Blocked, `403` | `base-knowledge`, `base-agents`, `base-interface` are private on the free plan — rulesets need a paid plan (verified 2026-09-14). `base-inference` is also private now (contained after a history-exposure finding — see its own issue #57), so it is in this group too, not the exception it used to be. |
+| Review required from `CODEOWNERS`, on any repository | Would deadlock every PR | GitHub forbids a PR author approving their own PR. Team membership, checked the same day: `knowledge` has a second real member (`manuelafbr`) — the only team where this could be turned on without deadlock. `platform`, `inference`, `agents`, `interface` are still the organisation owner alone. |
+| Rulesets on the four private repositories | `403` | Same cause as the status-check row — plan, not code. |
 
-Nothing above is worked around with local configuration. If it needs fixing,
-it gets fixed at the account level, by whoever owns the organisation, and this
-file is where that person finds out what to change and why.
+`allow_auto_merge` and `delete_branch_on_merge` are both `false`, and
+`allow_merge_commit`/`allow_squash_merge` are both `true`, on all five
+repositories — the opposite of the rebase-only rule above. Changed under
+**Settings → General → Pull Requests**, on GitHub, per repository; nothing in
+any of these repositories can change it from inside a PR.
+
+Nothing on this list is worked around with local configuration. Each row's
+fix is one of: upgrade the organisation's GitHub plan, add a second real
+member to a team, or a repository visibility decision — all account-level,
+all the organisation owner's call, not a session's.
