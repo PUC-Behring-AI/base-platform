@@ -71,8 +71,13 @@ two teams edit.
 | Create a new instance, or upgrade one | [`docs/ADAPTATION.md`](docs/ADAPTATION.md) |
 | Work as an agent in any of these repos | [`docs/AGENTS-base.md`](docs/AGENTS-base.md) |
 | Know why the architecture is what it is | [`docs/ADR.md`](docs/ADR.md) |
+| Open an issue or a pull request | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
 ## State
 
-Documentation only. Executable contracts, fakes and the shared gate do not exist
-yet.
+Contracts, the shared gate and the C1/C5/C6 schemas are real — see
+[`docs/CONTRACTS.md`](docs/CONTRACTS.md) §State. Executable fakes exist per
+layer (`base-knowledge`, `base-agents`, `base-interface`'s identity sidecar);
+`base-inference` keeps its own richer gate rather than adopting this one, by
+design. Redistributing the pieces `base-inference` still carries from before
+the layer split is tracked in issue #14.
