@@ -1,0 +1,33 @@
+name: issue hygiene
+# The template gives a new issue the "### Vizinhas" heading; nothing stops
+# someone from deleting it before submitting, and GitHub's issue API has no
+# pre-creation hook the way a git push does. This is the closest equivalent:
+# flag it immediately after creation, in place of the PreToolUse hook this
+# base used to depend on to enforce it before the issue ever reached GitHub.
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  check-vizinhas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the "### Vizinhas" heading
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || "";
+            if (/^###\s+Vizinhas/mi.test(body)) return;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body:
+                "This issue is missing the `### Vizinhas` section — see " +
+                "CONTRIBUTING.md. Which open issues does this one collide " +
+                "with? `nenhuma` is a valid answer; silence is not.",
+            });

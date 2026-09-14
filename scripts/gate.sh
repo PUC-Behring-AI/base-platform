@@ -214,12 +214,6 @@ else
     fi
 fi
 
-# ── 6. Marca o portão ────────────────────────────────────────────────────────
-
-if [ -x "$HOME/.claude/hooks/git-guard.sh" ]; then
-    "$HOME/.claude/hooks/git-guard.sh" --stamp || true
-fi
-
 echo ""
 echo "${BOLD}${GREEN}Portão passou.${RESET} Pode abrir o PR."
 echo ""
