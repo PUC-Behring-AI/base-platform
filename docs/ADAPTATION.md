@@ -100,6 +100,51 @@ is declared. That is not a weak gate — it is the whole floor a
 documentation-only repository has to clear, and inventing more would mean
 checking something that does not exist yet.
 
+### Plan limits — what the gate cannot do here, and why
+
+`docs/AGENTS-base.md` says the CI "is a required check, **wherever branch
+protection is available to require one**", and points at this section for
+where it is not. This is that section; until 2026-09-14 it did not exist, so
+the caveat forwarded the reader to an explanation nobody had written — which
+reads exactly like "this is handled elsewhere" and is the failure mode this
+base documents better than any other.
+
+**Measured on 2026-09-14.** The organisation is on GitHub's **free** plan
+(`gh api orgs/PUC-Behring-AI --jq .plan.name`). On that plan, branch
+protection is unavailable for **private** repositories:
+
+    $ gh api repos/PUC-Behring-AI/base-inference/branches/main/protection
+    {"message":"Upgrade to GitHub Pro or make this repository public
+     to enable this feature.","status":"403"}
+
+The API will not even report the setting, let alone accept one. And every
+instance repository is private by step 2 above, as are four of the five base
+repositories — `base-platform` is the exception, and it now requires its
+`gate` check, because that is the one place where the norm can be met for
+nothing.
+
+**So in a private repository the workflow runs, reports on the pull request,
+and does not block a merge.** Two consequences follow, and neither is
+optional:
+
+- **Wait for the check before merging.** `gh pr merge --auto` does *not*
+  wait where no check is required: there is nothing to wait for, so it
+  merges immediately. The command has two opposite meanings depending on a
+  setting nobody reads, and the dangerous one is the silent one. This was
+  found the way such things are found — a pull request went to `main` before
+  its gate had started.
+- **Say so in the repository's own `CONTRIBUTING.md`.** A gate described as
+  blocking, that reports, is worse than one honestly described as advisory:
+  people calibrate on the description.
+
+**The escape hatches, and what each costs.** Making a repository public
+restores protection and is not available to an instance — step 2's privacy
+is a client confidentiality decision, not a preference. Paying for GitHub
+Team restores it everywhere and is a budget decision that belongs to whoever
+holds the budget, recorded here rather than assumed either way. Neither is a
+precondition for anything: the gate runs, reports, and the discipline above
+covers the rest.
+
 ## 4. Fill in the extension points
 
 This is the **declarative** half of adaptation. The other half is domain code,
