@@ -324,3 +324,43 @@ now, by this contract, a layer with an incomplete API — a defect in that layer
 rather than a licence to go around it. Where the interface is a third-party
 product without such an API, the interface layer either wraps it or replaces
 it, and that cost is visible instead of hidden in a shell script.
+
+---
+
+## ADR-011: Instance code enters an engine through one socket, under the confidentiality clause
+
+**Context.** ADR-005 says an instance carries code, not only configuration.
+Most of that code runs in the instance's own repository. Some of it cannot: a
+connector that ingests the instance's sources, or a search over tables only the
+instance defines, has to run inside the knowledge engine, behind C1. Today the
+only way in is a pull request to the engine — which puts the instance's domain,
+and often its client's methodology, into the base.
+
+ADR-004 forbids opening an extension point before two instances ask for it,
+**unless what the first one needs cannot live in the base for confidentiality
+reasons.**
+
+**Decision.** One code socket per layer that needs it, opened under that second
+clause: an installed Python package, discovered through the entry-point group
+`base_<layer>.modules`, loaded only when the instance manifest lists it.
+`knowledge` first; `agents` through the same group when its flows need it.
+`inference` and `interface` take configuration only.
+
+What the socket guarantees is in `ADAPTATION.md` §4: the engine, not the
+module, sets every classification, and a container running instance code
+reaches only internal services.
+
+**Alternative discarded.** A module as a separate service behind an internal
+API, one container per module.
+
+**What that would have cost.** The classification would then be applied on the
+far side of a network hop, by whichever process answered — the guarantee would
+move from "the engine's code path" to "every module's deployment". And every
+module would be one more image to build, pin and publish, on a plan that has
+nowhere to publish them yet.
+
+**Consequences.** An instance image exists for every layer that accepts
+modules: the base image plus the instance's installed packages. A module runs
+with the engine's privileges, so its egress, not its good behaviour, is what
+keeps it from calling a model around C2. And the first instance no longer pays
+the "open an extension point first" price for code — it pays it once, here.

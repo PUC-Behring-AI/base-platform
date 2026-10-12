@@ -153,7 +153,7 @@ and section 5 covers it.
 | Layer | The instance declares |
 |---|---|
 | `knowledge` | `ontology/` (RDF/OWL), `connectors/` (sources), `taxonomy.yaml` |
-| `inference` | `models.yaml` (served models and key policy per class) |
+| `inference` | `models.yaml` (served models and where each runs), `tiers.yaml` |
 | `agents` | `flows/`, `prompts/`, `tools/` (MCP declarations) |
 | `interface` | `forms/`, `views/` |
 | `platform` | `schemas/` (C1–C6 payloads), `base-version.yaml` |
@@ -164,13 +164,95 @@ that applies to it.
 
     classes:
       - name: public
-        key-policy: external
+        key_policy: external
       - name: client-confidential
-        key-policy: local-only
+        key_policy: local-only
+
+The field is `key_policy`, as `schemas/classification.schema.json` spells it.
+An earlier version of this example wrote `key-policy`, which that schema
+rejects.
 
 The inference engine enforces the policy. The instance decides which classes
 exist and what each one permits — it does not decide *whether* the policy is
 enforced.
+
+**Classes live in this one file, and only `knowledge` reads it.** `inference`
+never sees a classification: it knows the two key families that
+`classification.schema.json` fixes, and nothing else. So `models.yaml` does not
+map classes to anything. It declares where each model runs — served locally,
+or by an external provider — and the engine derives what each family reaches:
+a `local-only` key reaches local models, an `external` key reaches all of them.
+The instance cannot declare an external model local; the engine refuses to
+start if it tries. A second class→policy map in another layer would be a second
+vocabulary for one decision, and the first divergence would be silent.
+
+### Where the engine reads them
+
+Each engine reads its instance from one directory, named by the
+`BASE_INSTANCE_DIR` environment variable and mounted **read-only** by that
+layer's own `compose.yaml`.
+
+- **Unset** — the engine starts with an empty instance, logs a loud warning,
+  and serves nothing it would have needed the instance for. This is what lets a
+  base repository run its own tests and its own development stack with no
+  instance at all. It is safe because nothing is served: an empty evidence
+  set already routes to `local-only`.
+- **Set, but a required file is missing or does not validate** — the engine
+  refuses to start. A misdeclared instance is a defect to see at boot, not a
+  degraded mode to discover in production.
+
+There is no built-in default. A default model or a default taxonomy inside an
+engine is the first instance's vocabulary leaking into every later one.
+
+### When an engine accepts code
+
+Configuration is not the whole of an instance (§5, ADR-005). Where instance
+code has to run **inside** an engine, it enters one way only: an installed
+Python package, discovered through the entry-point group
+`base_<layer>.modules`.
+
+- Only `knowledge` accepts modules today, and `agents` will, through the same
+  group. `inference` and `interface` take configuration only: `inference`
+  because code inside the gateway could bypass the very policy it enforces;
+  `interface` because its forms and views are declarations, and stay so until
+  two instances need code there (§5).
+- A module loads only when the instance manifest lists it under `modules:`.
+  Listed but not installed — refuse to start. Installed but not listed —
+  ignored, and logged.
+
+**The engine stamps; the module never classifies.** Everything a module returns
+that crosses a contract passes through engine code first, and that code is the
+only thing that sets `classification`. A module returns content and the
+source it came from; the class comes from the source's declaration, the policy
+from `taxonomy.yaml`. A module may ask for a *more* sensitive class, never a
+less sensitive one. Otherwise "classification at the source" would move into
+instance code, where no base test can see it.
+
+**A container that runs instance code reaches only internal services.** In
+process, a module could call a model provider directly and walk around C2. The
+network is what stops that, not a code review.
+
+### Building the instance image
+
+A configuration-only layer needs no image of its own: the instance directory is
+mounted into the base image. A layer with modules needs one, because an entry
+point exists only for a package that is installed:
+
+    FROM base-knowledge:<pinned tag>       # built locally, see below
+    RUN pip install <instance package>==<version>
+
+The base image is built from the sibling checkout of the base repository at
+the tag the instance pins (`build.additional_contexts` in Compose). **There is
+no image registry yet.** Two reasons: the private package storage on the
+organisation's current plan is far smaller than a serving image of several
+gigabytes (the quota is GitHub's published figure for the plan, not measured
+here), and the release tags an image would be named after stop short of
+`VERSION` (see §7). When production moves to the
+Kubernetes target, a registry comes with it.
+
+The engines do not implement this yet. Each layer's issue tracks its own half:
+the extension-point issue in `base-knowledge`, `base-inference` and
+`base-interface`, all citing the convention written here.
 
 ## 5. Write the code that is only yours
 

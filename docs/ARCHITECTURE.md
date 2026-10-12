@@ -49,6 +49,9 @@ for the same thing, or when the first asks for something confidential that
 therefore cannot live in the engine. Until then, the instance writes code in its
 own repository.
 
+How an instance plugs in — the directory an engine reads its declarations from,
+and the one way code enters an engine — is in `ADAPTATION.md` §4 and ADR-011.
+
 An engine generalised from a single case stiffens what was hard and abstracts
 what was easy.
 

@@ -19,6 +19,20 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- `ADAPTATION.md` §4: where an engine reads its instance (`BASE_INSTANCE_DIR`,
+  mounted read-only; unset means empty, invalid means refuse to start), how
+  instance code enters an engine (entry-point group `base_<layer>.modules`,
+  listed in the manifest), the stamp, the egress rule, and how an instance
+  image is built. ADR-011 records why the code socket opens now.
+
+### Fixed
+
+- `ADAPTATION.md` §4: the `taxonomy.yaml` example spelled `key-policy`; the
+  schema field is `key_policy`. `models.yaml` no longer claims a "key policy
+  per class" — `inference` never sees a class.
+
 ## [0.4.0] — 2026-09-14
 
 Found trying to make a real consumer (`base-inference/scripts/colleague.sh`)
