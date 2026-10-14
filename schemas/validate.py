@@ -45,10 +45,42 @@ def load_all_schemas(schemas_dir: Path = SCHEMAS_DIR) -> dict[str, dict[str, Any
     return schemas
 
 
+def _formats(node: Any) -> set[str]:
+    if isinstance(node, dict):
+        found = {node["format"]} if isinstance(node.get("format"), str) else set()
+        for value in node.values():
+            found |= _formats(value)
+        return found
+    if isinstance(node, list):
+        return set().union(*(_formats(item) for item in node))
+    return set()
+
+
+def unchecked_formats(schemas: dict[str, dict[str, Any]]) -> set[str]:
+    """Every "format" the schemas use that this environment cannot check.
+
+    jsonschema checks date-time and uri only when optional packages are
+    installed (the format-nongpl extra); without them it passes anything, and
+    the schema looks like enforcement while enforcing nothing.
+    """
+    used: set[str] = set().union(*(_formats(s) for s in schemas.values()))
+    return used - set(Draft202012Validator.FORMAT_CHECKER.checkers)
+
+
 def build_registry(schemas: dict[str, dict[str, Any]] | None = None) -> Registry:
-    """A referencing.Registry with every schema's $id resolvable via $ref."""
+    """A referencing.Registry with every schema's $id resolvable via $ref.
+
+    Refuses when a format the schemas use has no checker here: a validator
+    built from this registry would accept "yesterday" as a date-time.
+    """
     if schemas is None:
         schemas = load_all_schemas()
+    missing = unchecked_formats(schemas)
+    if missing:
+        raise RuntimeError(
+            f"no checker for format(s) {sorted(missing)} in this environment — "
+            'install "jsonschema[format-nongpl]>=4.0,<5.0" (base-platform#21)'
+        )
     resources = [Resource.from_contents(s) for s in schemas.values()]
     # Every resource here has a declared $id (load_all_schemas raises
     # otherwise), so .id() is never None in practice.
@@ -64,7 +96,10 @@ def validator_for(schema_id_or_ref: str, registry: Registry | None = None) -> Dr
     >>> validator_for("https://schemas.base.internal/c5_identity.schema.json#/$defs/create_account_request")
     """
     registry = registry or build_registry()
+    checker = Draft202012Validator.FORMAT_CHECKER
     if "#" in schema_id_or_ref:
-        return Draft202012Validator({"$ref": schema_id_or_ref}, registry=registry)
+        return Draft202012Validator(
+            {"$ref": schema_id_or_ref}, registry=registry, format_checker=checker
+        )
     schema = registry.contents(schema_id_or_ref)
-    return Draft202012Validator(schema, registry=registry)
+    return Draft202012Validator(schema, registry=registry, format_checker=checker)

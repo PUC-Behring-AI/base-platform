@@ -12,10 +12,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError
 from referencing import Registry
 
-from schemas.validate import build_registry, load_all_schemas
+from schemas.validate import build_registry, load_all_schemas, unchecked_formats, validator_for
 
 # Imported, not reimplemented: this repository is schemas/validate.py's own
 # first consumer, and duplicating its loader here to test it would be the
@@ -417,3 +417,43 @@ def test_c5_get_account_rejects_missing_has_credential(registry: Registry) -> No
                 "model_ids": [],
             }
         )
+
+
+# ── validator_for checks "format", or refuses to build ──────────────────
+
+_C6_ID = "https://schemas.base.internal/c6_provenance.schema.json"
+
+
+def test_validator_for_rejects_a_request_id_that_is_not_a_uuid() -> None:
+    """base-platform#21: "format" was an annotation, so X-Request-Id: trace-1
+    reached the C6 store, whose audit trail is keyed on it."""
+    instance = {**_valid_c6_instance(), "request_id": "trace-1"}
+    with pytest.raises(ValidationError, match="uuid"):
+        validator_for(_C6_ID).validate(instance)
+
+
+def test_validator_for_rejects_a_timestamp_that_is_not_a_date_time() -> None:
+    instance = {**_valid_c6_instance(), "emitted_at": "yesterday"}
+    with pytest.raises(ValidationError, match="date-time"):
+        validator_for(_C6_ID).validate(instance)
+
+
+def test_validator_for_accepts_a_valid_instance() -> None:
+    validator_for(_C6_ID).validate(_valid_c6_instance())
+
+
+def test_every_format_the_schemas_use_has_a_checker_here(schemas: dict[str, Any]) -> None:
+    """Without jsonschema's format-nongpl extra, date-time and uri have no
+    checker and pass anything. build_registry refuses that; this proves the
+    environment running the tests is not the one that would."""
+    assert unchecked_formats(schemas) == set()
+
+
+def test_build_registry_refuses_a_format_nothing_checks(
+    schemas: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkers = dict(Draft202012Validator.FORMAT_CHECKER.checkers)
+    del checkers["date-time"]
+    monkeypatch.setattr(Draft202012Validator.FORMAT_CHECKER, "checkers", checkers)
+    with pytest.raises(RuntimeError, match="date-time"):
+        build_registry(schemas)

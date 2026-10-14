@@ -24,7 +24,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install gate dependencies
-        run: pip install pytest pyyaml jsonschema ruff
+        run: pip install pytest pyyaml "jsonschema[format-nongpl]" ruff
 
       - name: Run the shared gate
         run: ./scripts/gate.sh
