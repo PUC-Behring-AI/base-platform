@@ -21,6 +21,14 @@ minor carries breaking changes.
 
 ### Added
 
+- `AGENTS-base.md` 1.3, **Axiom 10, One System Rule**: the base and instance
+  repositories are one system. Every repository's `main` works with every
+  sibling's `main`, and `scripts/harmony.sh` runs before every pull request.
+- `scripts/harmony.sh`: runs every sibling repository's gate against the working
+  trees on disk. Run from a worktree, it checks the siblings against that
+  worktree, and it exports `BASE_<NAME>_DIR` so the cross-layer tests do the
+  same.
+
 - `ADAPTATION.md` §4: where an engine reads its instance (`BASE_INSTANCE_DIR`,
   mounted read-only; unset means empty, invalid means refuse to start), how
   instance code enters an engine (entry-point group `base_<layer>.modules`,

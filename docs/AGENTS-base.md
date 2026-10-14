@@ -1,6 +1,6 @@
 # AGENTS-base.md — rules common to every repository in the base
 
-**Version: 1.2 · 2026-09-14**
+**Version: 1.3 · 2026-10-14**
 
 This file is the shared half of each repository's `AGENTS.md`. Every repository
 has its own `AGENTS.md` that **points here** and adds what is specific to it.
@@ -10,7 +10,7 @@ repository.
 
 This file is versioned. A repository declares which version it follows on the
 first line of its own `AGENTS.md`. That is what makes it possible to tell who is
-behind — the one thing ten loose copies never allow.
+behind — the one thing loose copies never allow.
 
 **Provenance.** These sections were extracted from `idia-server/AGENTS.md`
 (now `base-inference`), where they had accumulated over five phases of work.
@@ -246,6 +246,56 @@ When classifying the severity of a vulnerability:
 - **Medium:** exploitation requiring prior access (internal network, SSH,
   physical).
 - **Low:** defensive improvement with no immediate risk.
+
+---
+
+## Integration Axiom (AXIOM — NON-OVERRIDABLE)
+
+### 10. One System Rule — a change to one repository is a change to all of them
+
+`base-platform`, the four engines (`base-knowledge`, `base-inference`,
+`base-agents`, `base-interface`) and every instance's `<prefix>-*`
+repositories are **one system**, split into repositories only so that each
+layer can be owned and released on its own. They are checked out as siblings
+on disk, and they read each other through:
+
+- the contracts and their schemas (`base-platform/docs/CONTRACTS.md`,
+  `base-platform/schemas/`), imported in place, never copied;
+- the shared gate (`base-platform/scripts/gate.sh`) and `compose.base.yaml`;
+- the shapes of an instance directory (`taxonomy.yaml`, `connectors/`,
+  `models.yaml`, `forms/` …) and the entry-point groups
+  (`base_<layer>.modules`), defined by an engine and written by an instance;
+- environment variable names, service names and ports, which one repository
+  sets and another reads.
+
+Whoever changes one of those is changing every repository that reads it,
+whether or not that repository's gate notices.
+
+**The invariant: every repository's `main` works with every sibling's `main`,
+at all times.** Nothing is merged that needs an unmerged change in a sibling.
+
+What that obliges, every time:
+
+1. **Before changing**, name which siblings read what you are about to change.
+   Each repository's `AGENTS.md` has a section, *This repository in the
+   system*, listing what it reads and who reads it. Start there.
+2. **A producer's change lands with its consumers' changes.** The contract
+   (or shape) changes first, in `base-platform` or in the engine that owns the
+   shape. Each consumer change is its own pull request, `blocked_by` the
+   producer's issue (see *Cross-Repository Issue Tracing*), and is merged in
+   that order. When the change is backwards-compatible, the consumers may follow
+   later. When it is not, it is `BREAKING` in `CHANGELOG.md`, and no consumer's
+   `main` may stay on the old side.
+3. **Before opening any pull request, run `base-platform/scripts/harmony.sh`**
+   from the working tree you changed. It runs every sibling's gate against
+   your working tree, with the cross-layer tests included. Paste its summary
+   table into the pull request. A red sibling is your defect until shown
+   otherwise.
+4. **When a finding belongs to a sibling, it becomes an issue in that sibling.**
+   Do not fix it in passing from the wrong repository.
+
+A repository's own gate cannot replace step 3. Each gate checks one
+repository; the defects this rule exists for live between two of them.
 
 ---
 

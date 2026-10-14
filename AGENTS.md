@@ -1,5 +1,5 @@
 # AGENTS.md — base-platform
-# Follows AGENTS-base.md v1.2, at docs/AGENTS-base.md — this repository hosts
+# Follows AGENTS-base.md v1.3, at docs/AGENTS-base.md — this repository hosts
 # that file, and still follows it like every other repository in the base.
 # Base: v0.4.0
 
@@ -46,6 +46,10 @@ source, and require both bound teams to approve a change to it.
   layer, because that stays a real, separate operation. This CLI is for
   operating all five together.
 - **The shared gate** (`scripts/gate.sh`): see below.
+- **The harmony check** (`scripts/harmony.sh`): runs every sibling
+  repository's gate against the working trees on disk. It is the step
+  AGENTS-base.md's Axiom 10 requires before any pull request, in any
+  repository of the base or of an instance.
 
 ## The shared gate
 
@@ -67,6 +71,23 @@ a specific ruff file list) rather than switching to this one — it already had
 working infrastructure before this one existed, and replacing it was not worth
 the risk for this pass. The shared gate is the floor every *new* engine starts
 on, not a replacement for one that already does more.
+
+## This repository in the system
+
+Every other repository reads this one; this one reads none of them at
+runtime.
+
+| Who reads it | What they read | Through |
+|---|---|---|
+| every engine and instance | the contract schemas | `schemas/validate.py`, put on `sys.path` by each repository's `schema_bridge.py` (`BASE_PLATFORM_DIR`) |
+| every engine and instance | the shared gate | the `scripts/gate.sh` wrappers and each CI's sibling checkout |
+| every engine and instance | `docs/AGENTS-base.md` | the first lines of each `AGENTS.md` |
+| every instance | `docs/ADAPTATION.md`, `VERSION`, `CHANGELOG.md` | `<prefix>-platform/base-version.yaml` |
+| `compose.base.yaml` | each engine's `compose.yaml` and observability fragment | sibling paths under `BASE_ROOT` |
+
+So a change here is the change with the widest reach in the base. A schema
+or gate change can turn every sibling red. Run `scripts/harmony.sh` before
+every pull request.
 
 ## Changing a contract
 
