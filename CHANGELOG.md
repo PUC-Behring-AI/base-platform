@@ -19,7 +19,12 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-10-14
+## [0.5.0] — unreleased
+
+Not tagged until every layer fulfils it (`docs/ADAPTATION.md` §7):
+`base-knowledge` waits on its C7 client (base-knowledge#16), `base-inference`
+on its embedding model kind (base-inference#108). This is the first version
+tagged after 0.2.0 — 0.3.0 and 0.4.0 never were.
 
 C7 opens the first arrow out of `knowledge`, to an embedding model, and the
 instance socket convention (ADR-011) lands with it.
@@ -43,6 +48,11 @@ instance socket convention (ADR-011) lands with it.
   trees on disk. Run from a worktree, it checks the siblings against that
   worktree, and it exports `BASE_<NAME>_DIR` so the cross-layer tests do the
   same.
+- `ADAPTATION.md` §7: what a `# Base:` line claims (the layer does everything
+  the version asks of it), and when a version is tagged. `scripts/release.sh`
+  is the only way to tag: it checks the five agree, are on a clean `main`, and
+  pass `harmony.sh`. The shared gate now fails on a `# Base:` newer than
+  `VERSION`. §9 no longer promises a weekly train that never ran.
 - `ADAPTATION.md` §4: where an engine reads its instance (`BASE_INSTANCE_DIR`,
   mounted read-only; unset means empty, invalid means refuse to start), how
   instance code enters an engine (entry-point group `base_<layer>.modules`,
@@ -56,7 +66,7 @@ instance socket convention (ADR-011) lands with it.
   schema field is `key_policy`. `models.yaml` no longer claims a "key policy
   per class" — `inference` never sees a class.
 
-## [0.4.0] — 2026-09-14
+## [0.4.0] — 2026-09-14 — never tagged
 
 Found trying to make a real consumer (`base-inference/scripts/colleague.sh`)
 actually switch to the three operations `0.3.0` added: `create_account`
@@ -80,13 +90,13 @@ was a schema.
   directly, which is what printed a prefix of the real secret before this
   operation existed to answer the same question safely.
 
-## [0.3.0] — 2026-09-14
+## [0.3.0] — 2026-09-14 — never tagged
 
 Redistributing the parts of the original monolithic server into the layers they
 belong to (issue #14, recreated as #2 — see the repository history note
 below), and making the contracts executable instead of prose (issue #7,
-recreated as #3). Both grow one slice at a time; this is the first tag since
-0.2.0.
+recreated as #3). Both grow one slice at a time. It was meant to be the first
+tag since 0.2.0; no tag was made, for this version or the next.
 
 ### Note on this repository's history
 
@@ -129,17 +139,6 @@ own PR links no longer resolve.
   gotten right without first reading what `./base-inference` actually does
   (it is entirely specific to that layer — moving it here would have broken
   it, not relocated it).
-- **The gate now runs in CI, on every pull request, in all five repositories**
-  (`.github/workflows/gate.yml`), instead of depending on a `PreToolUse` hook
-  installed on one machine. `.github/ISSUE_TEMPLATE/issue.md` carries the
-  `### Vizinhas` heading, and `.github/workflows/issue-hygiene.yml` flags a new
-  issue missing it — the closest equivalent to a pre-creation check the issue
-  API allows. `.github/pull_request_template.md` carries the merge checklist.
-  `CONTRIBUTING.md`, here, is now the one place the issue and merge procedure
-  is written down; the other four repositories carry a short version pointing
-  back to it. `docs/ADAPTATION.md` §3 and `docs/AGENTS-base.md` §"The local
-  gate" describe the new mechanism instead of the hook. `AGENTS-base.md` moves
-  to **v1.2**.
 - **`compose.base.yaml` composes all four available engines.**
   `base-knowledge`, `base-inference`, `base-agents` and `base-interface`'s
   identity sidecar all take part now, each mounting `schemas/` from here and

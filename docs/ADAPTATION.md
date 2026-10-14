@@ -296,6 +296,24 @@ pinning would be more precise and would lose exactly that.
 The cost is real and worth knowing: a fix in one engine bumps the version of all
 five. That is deliberate — the alternative is five numbers nobody reconciles.
 
+**What a repository's `# Base: vX.Y.Z` line claims.** That the repository
+does everything version X.Y.Z asks of its layer — not only that it was read
+against X.Y.Z's contracts. A layer the new version asks nothing of declares it
+as soon as someone has checked that; a layer it asks something of declares it
+when the work is merged. Until then the line stays on the version the layer
+does fulfil, and `AGENTS.md` names, next to it, the issue that holds it back.
+
+**When a version is tagged.** When every one of the five declares `VERSION`,
+`CHANGELOG.md` gives the version a date, and `scripts/release.sh` finds the
+five on a clean `main` that `scripts/harmony.sh` passes. The script is the
+only way a tag is made: it refuses otherwise, and with `--tag` it tags the
+five at the commits it checked and pushes the tags. So a tag means the
+combination fulfils the version and was tested against itself — which is what
+an instance pinning it needs. Until the tag exists, the version is
+unreleased, however far `VERSION` has moved.
+
+0.3.0 and 0.4.0 were never tagged. The first tag after 0.2.0 is 0.5.0.
+
 ## 8. Upgrading
 
 The base does not push. An instance pulls, and this is what pulling looks like:
@@ -313,9 +331,11 @@ knowing: the pinned version is in a file, in git, so "which instances are behind
 The shared gate's version check works the same way for the base repositories
 themselves: it warns when an `AGENTS.md` declares an old version, and never
 fails a pull request over it. Whether to update is the repository's call, made
-knowingly — not the gate's to force.
+knowingly — not the gate's to force. It fails only on a version newer than
+`VERSION`: that declares a base that does not exist yet.
 
 ## 9. Board the train
 
-The release train departs weekly with whatever is ready. The instance boards it
-like any other.
+There is no fixed release schedule. A version departs when the five fulfil it
+(§7), and between 0.2.0 and 0.5.0 that took five weeks and three version
+numbers. An instance boards a version by pinning its tag, never a `main`.

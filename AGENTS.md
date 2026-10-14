@@ -50,6 +50,9 @@ source, and require both bound teams to approve a change to it.
   repository's gate against the working trees on disk. It is the step
   AGENTS-base.md's Axiom 10 requires before any pull request, in any
   repository of the base or of an instance.
+- **The release script** (`scripts/release.sh`): the only way the base is
+  tagged. It tags the five at `v<VERSION>` only when all five declare that
+  version, sit on a clean `main`, and pass `harmony.sh` (`docs/ADAPTATION.md` §7).
 
 ## The shared gate
 

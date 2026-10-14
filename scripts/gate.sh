@@ -22,8 +22,9 @@
 #
 #   - README.md and AGENTS.md exist                 → FAILS if missing
 #   - AGENTS.md declares "# Base: vX.Y.Z"            → FAILS if the line is
-#                                                       absent, WARNS if the
-#                                                       version is not current
+#                                                       absent or newer than
+#                                                       VERSION, WARNS if the
+#                                                       version is older
 #   - every *.yml / *.yaml file parses               → FAILS if any is invalid
 #   - a Python test suite, if one exists             → FAILS if red or if
 #                                                       pytest is missing,
@@ -93,8 +94,23 @@ if [ -z "${declared:-}" ]; then
     _fail "AGENTS.md não declara '# Base: vX.Y.Z' — sem essa linha, ninguém sabe contra qual versão da base este repositório foi escrito (issue base-platform#9)"
 fi
 current="$(cat "$BASE_PLATFORM_DIR/VERSION")"
+# Uma versão à frente de VERSION afirma cumprir uma base que não existe
+# (docs/ADAPTATION.md §7). Comparação campo a campo: o sort -V do macOS não é
+# garantido.
+_newer() {
+    local IFS=.
+    # shellcheck disable=SC2206
+    local a=($1) b=($2) i
+    for i in 0 1 2; do
+        [ "${a[$i]}" -gt "${b[$i]}" ] && return 0
+        [ "${a[$i]}" -lt "${b[$i]}" ] && return 1
+    done
+    return 1
+}
 if [ "$declared" = "$current" ]; then
     _ok "v$declared — igual à base atual"
+elif _newer "$declared" "$current"; then
+    _fail "declara v$declared, à frente da base atual v$current — a linha '# Base:' afirma cumprir uma versão que ainda não existe (docs/ADAPTATION.md §7)"
 else
     _warn "declara v$declared; a base atual é v$current — ver base-platform/CHANGELOG.md antes de decidir se vale atualizar"
 fi
