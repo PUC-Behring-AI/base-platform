@@ -28,10 +28,21 @@
           "minItems": 1,
           "uniqueItems": true,
           "description": "Which of the two credential families this principal may ever be issued. A principal who should never reach a third-party provider gets ['local-only'] here — not a runtime check downstream."
+        },
+        "purpose": {
+          "type": "string",
+          "enum": ["chat", "embed"],
+          "description": "Optional, defaults to 'chat'. 'embed' issues the C7 credential: confined to the deployment's embedding models and to the embeddings route, and only ever local-only. The two are issued separately because they are different reaches, not different budgets — a chat credential is never widened into an embedding one, nor the reverse."
         }
       },
       "required": ["principal_id", "budget", "rate_limit_rpm", "allowed_key_policies"],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "purpose": { "const": "embed" } }, "required": ["purpose"] },
+          "then": { "properties": { "allowed_key_policies": { "const": ["local-only"] } } }
+        }
+      ]
     },
     "issue_credential_response": {
       "title": "inference: credential issued",

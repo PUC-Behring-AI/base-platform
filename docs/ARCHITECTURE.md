@@ -13,7 +13,7 @@ already did once.
 
 | Layer | Owns | Does **not** own |
 |---|---|---|
-| `knowledge` | Ingestion, relational, vector, RDF graph, object store, assignment of the sensitivity classification at the source, **the provenance store** | No notion of business flow. Never calls a model. Holds no operational metric. |
+| `knowledge` | Ingestion, relational, vector, RDF graph, object store, assignment of the sensitivity classification at the source, **the provenance store** | No notion of business flow. Never calls a generative model — embeddings only, over C7. Holds no operational metric. |
 | `inference` | Ray Serve, vLLM, KubeRay, LiteLLM, virtual keys, budgets, elasticity, enforcement of the routing policy | Knows nothing about the domain. Never reads the knowledge base. |
 | `agents` | Flows, orchestration, MCP, guardrails, the routing decision, explainability | Persists no knowledge. Manages no GPU. Renders nothing. Does not *store* the audit trail — it emits to it. |
 | `interface` | Session, layout, forms, visualisation, audit view | Does not talk to `knowledge` or `inference`. Exactly one arrow leaves here. |

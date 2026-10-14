@@ -305,6 +305,56 @@ def test_c5_issue_credential_rejects_an_unknown_key_policy(registry: Registry) -
         Draft202012Validator(schema, registry=registry).validate(instance)
 
 
+def test_c5_issue_credential_accepts_an_embedding_credential(registry: Registry) -> None:
+    """C7's credential is issued through C5, local-only, with purpose 'embed'."""
+    schema = {
+        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/issue_credential_request"
+    }
+    instance = {
+        "principal_id": "knowledge",
+        "budget": 1.0,
+        "rate_limit_rpm": 600,
+        "allowed_key_policies": ["local-only"],
+        "purpose": "embed",
+    }
+    Draft202012Validator(schema, registry=registry).validate(instance)
+
+
+@pytest.mark.parametrize("policies", [["external"], ["local-only", "external"]])
+def test_c5_issue_credential_refuses_an_embedding_credential_that_can_leave(
+    registry: Registry, policies: list[str]
+) -> None:
+    """An embedding credential reaches every document and every query in the
+    index, so it can never be one that reaches a third-party provider (C7)."""
+    schema = {
+        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/issue_credential_request"
+    }
+    instance = {
+        "principal_id": "knowledge",
+        "budget": 1.0,
+        "rate_limit_rpm": 600,
+        "allowed_key_policies": policies,
+        "purpose": "embed",
+    }
+    with pytest.raises(Exception):
+        Draft202012Validator(schema, registry=registry).validate(instance)
+
+
+def test_c5_issue_credential_rejects_an_unknown_purpose(registry: Registry) -> None:
+    schema = {
+        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/issue_credential_request"
+    }
+    instance = {
+        "principal_id": "user-42",
+        "budget": 2.0,
+        "rate_limit_rpm": 60,
+        "allowed_key_policies": ["local-only"],
+        "purpose": "anything",
+    }
+    with pytest.raises(Exception):
+        Draft202012Validator(schema, registry=registry).validate(instance)
+
+
 def test_c5_link_credential_rejects_missing_virtual_key(registry: Registry) -> None:
     """The whole point of this operation is carrying the secret across the
     boundary -- an instance missing it is not a smaller version of the

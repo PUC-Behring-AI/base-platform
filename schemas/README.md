@@ -12,8 +12,9 @@ incomplete:
 | C2 | no | OpenAI-compatible — the shape is [already defined externally](https://platform.openai.com/docs/api-reference/chat), and C2's own addition is a policy (which credential), not a payload field |
 | C3 | no | intentionally instance-specific — "one arrow leaves the interface" is an architectural invariant, not a payload shape the base can fix |
 | C4 | no | Prometheus exposition format, not JSON; its invariant ("no payload") is checked by each layer's own tests, not by a base-level schema |
-| C5 | `c5_identity.schema.json` | `$defs` per operation: `issue_credential_request`/`response`, `revoke_credential_request`, `create_account_request`/`response`, `grant_access_request`, `revoke_access_request` |
+| C5 | `c5_identity.schema.json` | `$defs` per operation (`issue_credential_request` carries C7's `purpose: "embed"`): `issue_credential_request`/`response`, `revoke_credential_request`, `create_account_request`/`response`, `grant_access_request`, `revoke_access_request` |
 | C6 | `c6_provenance.schema.json` | composes `envelope.schema.json` + `classification.schema.json` via `allOf` |
+| C7 | no | OpenAI-compatible `/v1/embeddings`; C7's own addition is a credential scope, carried by C5's `issue_credential_request.purpose` |
 
 `envelope.schema.json` and `classification.schema.json` are shared fragments,
 `$ref`'d by the others rather than duplicated into each.

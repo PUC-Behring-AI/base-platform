@@ -364,3 +364,38 @@ modules: the base image plus the instance's installed packages. A module runs
 with the engine's privileges, so its egress, not its good behaviour, is what
 keeps it from calling a model around C2. And the first instance no longer pays
 the "open an extension point first" price for code — it pays it once, here.
+
+---
+
+## ADR-012: The knowledge layer may call an embedding model, over C7 only
+
+**Context.** ADR-001 placed the routing decision in `agents` partly because
+"the knowledge layer does not call models at all". A real evidence store breaks
+that sentence. It needs a vector for every passage it indexes and for every
+query it searches with, and the model that produces them has to run somewhere.
+
+**Decision.** `knowledge` calls exactly one kind of model, an embedding model,
+served by `inference`, through one contract, C7. The credential is issued
+through C5 with `purpose: "embed"`. It is always `local-only`, and it is
+confined to the embedding models and to the embeddings route. ADR-001's
+sentence narrows to "the knowledge layer calls no generative model". Its
+argument is unchanged: `knowledge` still makes no routing decision, because an
+embedding call routes nothing — its credential is fixed, not chosen per
+request.
+
+**Alternative discarded.** Embed in-process, inside the knowledge container,
+with a model bundled into the image.
+
+**What that would have cost.** A second serving stack, inside the one layer
+built to hold no models: its own GPU or CPU sizing, its own model pinning, its
+own weights download. And it would sit in a container that runs instance code
+(ADR-011), so the network rule keeping that code from reaching a provider
+would have to allow a model runtime next to it. Every instance would also pick
+its embedding model in a different place from every other model it serves.
+
+**Consequences.** `knowledge` gains one outbound arrow, to `inference`, and
+`inference` gains a second kind of caller. Both are on the contract, and both
+are narrower than C2: one route, one key family, one model kind. An index's
+vectors belong to one model, so changing the embedding model is a re-embedding
+job, not a configuration flip.
+

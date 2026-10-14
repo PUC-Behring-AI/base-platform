@@ -19,8 +19,23 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-14
+
+C7 opens the first arrow out of `knowledge`, to an embedding model, and the
+instance socket convention (ADR-011) lands with it.
+
 ### Added
 
+- **`BREAKING` — C7, embeddings, `knowledge` → `inference`** (`docs/CONTRACTS.md`, ADR-012):
+  - OpenAI-compatible `/v1/embeddings` only;
+  - an always `local-only` credential, confined to the embedding models and to the embeddings route;
+  - one embedding model per index, vectors stored under their passage's classification, and every call recorded in C6.
+
+  ADR-001 and `ARCHITECTURE.md` narrow to "never calls a generative model". **What each layer must do:**
+  - `inference` serves an embedding model kind, and mints the confined credential;
+  - `knowledge` builds the client and hands it to modules;
+  - an instance declares its embedding model.
+- **`BREAKING` — C5 `issue_credential_request` gains `purpose`** (`chat` | `embed`, default `chat`). An `embed` credential must have `allowed_key_policies: ["local-only"]`; the schema refuses anything else.
 - `AGENTS-base.md` 1.3, **Axiom 10, One System Rule**: the base and instance
   repositories are one system. Every repository's `main` works with every
   sibling's `main`, and `scripts/harmony.sh` runs before every pull request.
@@ -28,7 +43,6 @@ minor carries breaking changes.
   trees on disk. Run from a worktree, it checks the siblings against that
   worktree, and it exports `BASE_<NAME>_DIR` so the cross-layer tests do the
   same.
-
 - `ADAPTATION.md` §4: where an engine reads its instance (`BASE_INSTANCE_DIR`,
   mounted read-only; unset means empty, invalid means refuse to start), how
   instance code enters an engine (entry-point group `base_<layer>.modules`,
@@ -37,6 +51,7 @@ minor carries breaking changes.
 
 ### Fixed
 
+- `docs/CONTRACTS.md`: the C6 section had lost its heading and read as part of C5.
 - `ADAPTATION.md` §4: the `taxonomy.yaml` example spelled `key-policy`; the
   schema field is `key_policy`. `models.yaml` no longer claims a "key policy
   per class" — `inference` never sees a class.
