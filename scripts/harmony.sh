@@ -131,7 +131,7 @@ for dir in "$BASE_ROOT"/*/; do
     elif [ -e "$dir/.git" ]; then
         case "$(basename "$dir")" in
             base-*|*-platform|*-knowledge|*-inference|*-agents|*-interface)
-                unlisted="$unlisted $(basename "$dir")" ;;
+                unlisted="$unlisted $dir" ;;
         esac
     fi
 done
@@ -209,10 +209,17 @@ echo "| repository | branch | base | gate | notes |"
 echo "|---|---|---|---|---|"
 printf "%b" "$summary"
 
-if [ -n "$unlisted" ]; then
+# Reported only when no working tree of that repository was checked: a main
+# checkout behind its own worktree (the worktree adds the AGENTS.md) is not a
+# repository left out.
+left_out=""
+for dir in $unlisted; do
+    [ -n "$(index_of "$(repo_name "$dir")")" ] || left_out="$left_out $(basename "$dir")"
+done
+if [ -n "$left_out" ]; then
     warned=1
     echo ""
-    echo "${YELLOW}[warn]${RESET} not checked — layer-named, but no '# Base:' line in AGENTS.md:$unlisted"
+    echo "${YELLOW}[warn]${RESET} not checked — layer-named, but no '# Base:' line in AGENTS.md:$left_out"
 fi
 
 if [ "$(echo "$versions" | wc -w | tr -d ' ')" -gt 1 ]; then

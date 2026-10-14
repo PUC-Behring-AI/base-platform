@@ -119,6 +119,25 @@ class TestWarnings:
         assert result.returncode == 0
         assert "not checked" in result.stdout and "x-platform" in result.stdout
 
+    def test_no_left_out_warning_when_a_worktree_of_it_was_checked(self, root: Path) -> None:
+        _make_repo(root, "base-platform")
+        main = root / "x-platform"
+        main.mkdir()
+        _git(main, "init", "-q", "-b", "main")
+        (main / "README.md").write_text("x\n")
+        _git(main, "add", "-A")
+        _git(main, "commit", "-q", "-m", "init")
+        worktree = root / "x-platform-wt"
+        _git(main, "worktree", "add", "-q", str(worktree), "-b", "wt")
+        (worktree / "AGENTS.md").write_text("# Base: v0.4.0\n")
+        (worktree / "scripts").mkdir()
+        (worktree / "scripts" / "gate.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+        (worktree / "scripts" / "gate.sh").chmod(0o755)
+        result = _run(root, cwd=worktree)
+        assert result.returncode == 0, result.stdout
+        assert "| x-platform | wt |" in result.stdout
+        assert "not checked" not in result.stdout
+
     def test_divergent_base_lines_warn(self, root: Path) -> None:
         _make_repo(root, "base-platform", base="v0.4.0")
         _make_repo(root, "base-knowledge", base="v0.2.0")
