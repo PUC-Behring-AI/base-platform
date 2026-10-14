@@ -147,6 +147,8 @@ and what only ever shipped (create and remove).
   anyway would make this operation a second way to read what
   `link_credential` already wrote once.
 
+### C6 — provenance
+
 One record per request, emitted by every layer that touched it, correlated by a
 request identifier that the interface generates and every layer propagates
 unchanged.
