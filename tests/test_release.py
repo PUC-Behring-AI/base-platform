@@ -163,6 +163,14 @@ class TestRefusals:
         assert "harmony.sh failed" in result.stderr
         assert all(_origin_tags(root, name) == "" for name in REPOS)
 
+    def test_a_red_sibling_outside_the_five_does_not_block(self, root: Path) -> None:
+        _make_set(root)
+        _make_repo(root, "x-platform", base="v0.5.0", gate="echo red-outsider; exit 1")
+        result = _run(root)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "red-outsider" not in result.stdout
+        assert "x-platform" not in result.stdout
+
     def test_an_unknown_argument_is_refused(self, root: Path) -> None:
         _make_set(root)
         assert _run(root, "--force").returncode == 2

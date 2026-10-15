@@ -5,6 +5,7 @@
 #
 # Usage, from anywhere:
 #   /path/to/base-platform/scripts/harmony.sh [repo-path ...]
+#   /path/to/base-platform/scripts/harmony.sh --only repo-path ...
 #
 # The repositories of the base and of every instance are one system
 # (AGENTS-base.md, Axiom 10): a change to a schema, a contract, an instance
@@ -22,6 +23,9 @@
 #   given on the command line, or the current directory is inside one of
 #   them: then that working tree is used instead. Run it from the worktree you
 #   are changing, and the siblings are checked against your change.
+#   With --only, exactly the paths given are checked, and nothing else under
+#   BASE_ROOT: release.sh checks the five base layers this way, so a
+#   repository cloned next to them cannot decide whether the base is tagged.
 #
 # What it exports to every gate, so the cross-layer checks use the same set:
 #   BASE_ROOT, and BASE_<NAME>_DIR for every base-* repository
@@ -85,7 +89,13 @@ is_worktree() {
 # ── 1. Which working trees ───────────────────────────────────────────────────
 
 # Preferred working trees: the command-line paths, plus the repository the
-# current directory is in.
+# current directory is in. With --only, the command-line paths alone.
+only=no
+if [ "${1:-}" = "--only" ]; then
+    only=yes
+    shift
+    [ "$#" -gt 0 ] || { echo "${RED}--only needs at least one repository path${RESET}" >&2; exit 2; }
+fi
 preferred=()
 for p in "$@"; do
     [ -d "$p" ] || { echo "${RED}not a directory:${RESET} $p" >&2; exit 2; }
@@ -94,7 +104,7 @@ for p in "$@"; do
     preferred+=("$p")
 done
 here="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [ -n "$here" ] && is_member "$here"; then
+if [ "$only" = "no" ] && [ -n "$here" ] && is_member "$here"; then
     preferred+=("$here")
 fi
 
@@ -124,7 +134,7 @@ consider() {
 # A layer-named repository with no "# Base:" line is not skipped in silence:
 # it is a repository of the system that cannot say which base it follows.
 unlisted=""
-for dir in "$BASE_ROOT"/*/; do
+[ "$only" = "yes" ] || for dir in "$BASE_ROOT"/*/; do
     dir="${dir%/}"
     if is_member "$dir"; then
         consider "$dir" no

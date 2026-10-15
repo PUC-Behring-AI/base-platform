@@ -172,6 +172,20 @@ class TestWhichWorkingTree:
         result = _run(root, str(worktree))
         assert f"saw={worktree}" in result.stdout
 
+    def test_only_checks_exactly_the_paths_given(self, root: Path) -> None:
+        platform = _make_repo(root, "base-platform")
+        _make_repo(root, "x-platform", gate="echo red-outsider; exit 1")
+        result = _run(root, "--only", str(platform), cwd=root / "x-platform")
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "| base-platform | main |" in result.stdout
+        assert "x-platform" not in result.stdout
+
+    def test_only_without_a_path_is_refused(self, root: Path) -> None:
+        _make_repo(root, "base-platform")
+        result = _run(root, "--only")
+        assert result.returncode == 2
+        assert "--only needs" in result.stderr
+
     def test_a_path_outside_the_base_is_refused(self, root: Path) -> None:
         _make_repo(root, "base-platform")
         (root / "elsewhere").mkdir()

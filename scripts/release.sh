@@ -26,7 +26,7 @@
 #   - declares a "# Base:" other than v<VERSION>
 #   - already has the tag v<VERSION>, locally or on origin
 # or when CHANGELOG.md does not give <VERSION> a date, or when harmony.sh
-# fails on the set.
+# fails on the five (--only: no other repository under BASE_ROOT counts).
 #
 # Bash 3.2 compatible (the one macOS ships): no associative arrays.
 # =============================================================================
@@ -88,8 +88,12 @@ if [ -n "$problems" ]; then
     exit 1
 fi
 
-# Every repository is on main, so harmony runs the main checkouts.
-if ! (cd "$platform" && "$SCRIPT_DIR/harmony.sh"); then
+# Every repository is on main, so harmony runs the main checkouts — of the
+# five, and only of them: a repository cloned next to the base, an instance
+# included, does not decide whether the base can be tagged (ADR-004).
+five=()
+for name in $REPOS; do five+=("$BASE_ROOT/$name"); done
+if ! (cd "$platform" && "$SCRIPT_DIR/harmony.sh" --only "${five[@]}"); then
     echo "Not releasing $tag: harmony.sh failed on the set." >&2
     exit 1
 fi

@@ -24,6 +24,10 @@ minor carries breaking changes.
 - `tests/test_harmony.py`: a fixture repository was named after a real
   instance prefix; it is `x-like` now (#34). A test name is as public as a
   document.
+- `scripts/release.sh` (#36): harmony runs on the five base layers only,
+  through the new `harmony.sh --only <path>...`. A repository cloned next to
+  the base, an instance included, no longer decides whether the base can be
+  tagged (ADR-004: the base does not push, an instance pulls).
 
 ## [0.5.0] — 2026-10-15
 
