@@ -19,6 +19,12 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- `tests/test_harmony.py`: a fixture repository was named after a real
+  instance prefix; it is `x-like` now (#34). A test name is as public as a
+  document.
+
 ## [0.5.0] — 2026-10-15
 
 The first version tagged after 0.2.0 — 0.3.0 and 0.4.0 never were. Tagged
