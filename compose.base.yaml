@@ -28,40 +28,22 @@
 # fragments are the source the manifests are generated from — see
 # docs/ARCHITECTURE.md.
 
+# A service brought in by `include` cannot be redefined in this file:
+# Compose v2 refuses the whole file ("conflicts with imported resource",
+# measured on v2.29.7 and v2.39.4; v5 merges it). So each override is a second
+# file merged inside its include entry, which every measured version accepts
+# (#30). The overrides, and why only this layer can make them, are in the
+# compose.wiring.*.yaml files.
 include:
   - path: ${BASE_ROOT:-..}/base-knowledge/compose.yaml
   - path: ${BASE_ROOT:-..}/base-inference/docker-compose.yml
   - path: ${BASE_ROOT:-..}/base-agents/compose.yaml
-  - path: ${BASE_ROOT:-..}/base-interface/compose.yaml
-  - path: ./compose.yaml
-
-# Each layer publishes the targets it wants scraped, in its own repository.
-# THIS is the file that knows all five exist, so this is where those files get
-# mounted into the backend. Putting the mount in compose.yaml would make the
-# platform layer's own fragment name the other layers; putting it in a layer's
-# fragment would make that layer redefine a service it does not own.
-services:
-  prometheus:
-    volumes:
-      - ${BASE_ROOT:-..}/base-knowledge/observability/scrape.d/knowledge.yml:/etc/prometheus/scrape.d/knowledge.yml:ro
-      - ${BASE_ROOT:-..}/base-inference/observability/scrape.d/inference.yml:/etc/prometheus/scrape.d/inference.yml:ro
-      - ${BASE_ROOT:-..}/base-agents/observability/scrape.d/agents.yml:/etc/prometheus/scrape.d/agents.yml:ro
-      - ${BASE_ROOT:-..}/base-interface/observability/scrape.d/interface.yml:/etc/prometheus/scrape.d/interface.yml:ro
-
-  grafana:
-    volumes:
-      - ${BASE_ROOT:-..}/base-inference/observability/dashboards:/etc/grafana/provisioning/dashboards/inference:ro
-
-  # base-interface's open-webui depends on base-inference's litellm being
-  # healthy before it starts. Neither layer's own compose.yaml can declare
-  # that: base-interface's file does not define litellm, and a depends_on
-  # naming an undefined service makes Compose refuse the file even standalone
-  # (verified — `docker compose config` in base-interface alone errors on it
-  # otherwise). Only this file, which includes both, can add the wait back.
-  open-webui:
-    depends_on:
-      litellm:
-        condition: service_healthy
+  - path:
+      - ${BASE_ROOT:-..}/base-interface/compose.yaml
+      - ./compose.wiring.interface.yaml
+  - path:
+      - ./compose.yaml
+      - ./compose.wiring.observability.yaml
 
 # base-knowledge, base-agents and base-interface's fakes need base-platform's
 # schemas/ mounted, same as base-inference does not (it has no schema

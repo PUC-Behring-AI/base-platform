@@ -1,0 +1,19 @@
+# Merged into base-platform's own compose.yaml by compose.base.yaml (#30).
+#
+# Each layer publishes the targets it wants scraped, in its own repository.
+# compose.base.yaml is the file that knows all five exist, so this is where
+# those files get mounted into the backend. Putting the mount in compose.yaml
+# would make the platform layer's own fragment name the other layers; putting
+# it in a layer's fragment would make that layer redefine a service it does
+# not own.
+services:
+  prometheus:
+    volumes:
+      - ${BASE_ROOT:-..}/base-knowledge/observability/scrape.d/knowledge.yml:/etc/prometheus/scrape.d/knowledge.yml:ro
+      - ${BASE_ROOT:-..}/base-inference/observability/scrape.d/inference.yml:/etc/prometheus/scrape.d/inference.yml:ro
+      - ${BASE_ROOT:-..}/base-agents/observability/scrape.d/agents.yml:/etc/prometheus/scrape.d/agents.yml:ro
+      - ${BASE_ROOT:-..}/base-interface/observability/scrape.d/interface.yml:/etc/prometheus/scrape.d/interface.yml:ro
+
+  grafana:
+    volumes:
+      - ${BASE_ROOT:-..}/base-inference/observability/dashboards:/etc/grafana/provisioning/dashboards/inference:ro
