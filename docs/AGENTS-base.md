@@ -1,6 +1,6 @@
 # AGENTS-base.md — rules common to every repository in the base
 
-**Version: 1.3 · 2026-10-14**
+**Version: 1.4 · 2026-10-15**
 
 This file is the shared half of each repository's `AGENTS.md`. Every repository
 has its own `AGENTS.md` that **points here** and adds what is specific to it.
@@ -271,8 +271,16 @@ on disk, and they read each other through:
 Whoever changes one of those is changing every repository that reads it,
 whether or not that repository's gate notices.
 
-**The invariant: every repository's `main` works with every sibling's `main`,
-at all times.** Nothing is merged that needs an unmerged change in a sibling.
+**The invariant has two halves, because the base and an instance meet at a
+version, not at a branch** (`ADAPTATION.md` §7 and §9):
+
+- **The base layers' `main` branches work together, at all times.** Nothing
+  is merged into a base repository that needs an unmerged change in another.
+- **An instance works with the base at the version it pins**
+  (`<prefix>-platform/base-version.yaml`), and its own repositories' `main`
+  branches work together, at all times. The instance checks both in its own
+  CI. The base never checks out an instance: that would make the base depend
+  on, and name, the projects that use it.
 
 What that obliges, every time:
 
@@ -284,13 +292,20 @@ What that obliges, every time:
    shape. Each consumer change is its own pull request, `blocked_by` the
    producer's issue (see *Cross-Repository Issue Tracing*), and is merged in
    that order. When the change is backwards-compatible, the consumers may follow
-   later. When it is not, it is `BREAKING` in `CHANGELOG.md`, and no consumer's
-   `main` may stay on the old side.
+   later. When it is not, it is `BREAKING` in `CHANGELOG.md`, and no base
+   layer's `main` may stay on the old side. An instance meets the change when
+   it moves its pin (`ADAPTATION.md` §8).
 3. **Before opening any pull request, run `base-platform/scripts/harmony.sh`**
    from the working tree you changed. It runs every sibling's gate against
-   your working tree, with the cross-layer tests included. Paste its summary
-   table into the pull request. A red sibling is your defect until shown
-   otherwise.
+   your working tree, with the cross-layer tests included. Who counts as a
+   sibling depends on where it runs:
+   - in a base repository, the base layers only;
+   - in an instance repository, that instance's own `<prefix>-*`
+     repositories plus the base, which its CI checks out at the tag the
+     instance pins.
+
+   Paste its summary table into the pull request. A red sibling is your
+   defect until shown otherwise.
 4. **When a finding belongs to a sibling, it becomes an issue in that sibling.**
    Do not fix it in passing from the wrong repository.
 

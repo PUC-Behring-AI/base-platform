@@ -1,5 +1,5 @@
 # AGENTS.md — base-platform
-# Follows AGENTS-base.md v1.3, at docs/AGENTS-base.md — this repository hosts
+# Follows AGENTS-base.md v1.4, at docs/AGENTS-base.md — this repository hosts
 # that file, and still follows it like every other repository in the base.
 # Base: v0.5.0
 
@@ -49,7 +49,9 @@ source, and require both bound teams to approve a change to it.
 - **The harmony check** (`scripts/harmony.sh`): runs every sibling
   repository's gate against the working trees on disk. It is the step
   AGENTS-base.md's Axiom 10 requires before any pull request, in any
-  repository of the base or of an instance. CI runs it too
+  repository of the base or of an instance. From a base repository the
+  siblings are the base layers alone; from an instance, its own repositories
+  and the base. CI runs it too
   (`.github/workflows/harmony.yml`, reusable): each repository's settings
   name its siblings (`HARMONY_SIBLINGS`) and hold a read-only deploy key per
   private sibling (`HARMONY_KEY_<NAME>`), so no file names a repository.
