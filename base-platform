@@ -85,8 +85,9 @@ _check_siblings() {
     if [ "${#missing[@]}" -gt 0 ]; then
         _error "Missing sibling repositories under ${BASE_ROOT}: ${missing[*]}"
         echo "  Clone them as siblings of base-platform, or set BASE_ROOT." >&2
-        echo "  A directory renamed after a repo rename (e.g. idia-server" >&2
-        echo "  instead of base-inference) will not be found here." >&2
+        echo "  A directory still under its name from before a repo rename (e.g." >&2
+        echo "  the precursor monolith's, instead of base-inference) will not be" >&2
+        echo "  found here." >&2
         exit 1
     fi
 }
