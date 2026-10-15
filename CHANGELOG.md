@@ -28,6 +28,9 @@ minor carries breaking changes.
   this repository. A hit names the place and the term's number, never the
   term. With no list given the check warns that it is not active. Skipped in
   an instance, which names itself.
+- The gate workflow scans each pull request's diff and commit messages with
+  gitleaks (#39), from a release binary pinned by version and sha256, and
+  fails the run on a finding. Findings are printed redacted.
 
 ### Fixed
 
