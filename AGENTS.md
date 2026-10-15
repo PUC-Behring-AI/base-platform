@@ -49,7 +49,10 @@ source, and require both bound teams to approve a change to it.
 - **The harmony check** (`scripts/harmony.sh`): runs every sibling
   repository's gate against the working trees on disk. It is the step
   AGENTS-base.md's Axiom 10 requires before any pull request, in any
-  repository of the base or of an instance.
+  repository of the base or of an instance. CI runs it too
+  (`.github/workflows/harmony.yml`, reusable): each repository's settings
+  name its siblings (`HARMONY_SIBLINGS`) and hold a read-only deploy key per
+  private sibling (`HARMONY_KEY_<NAME>`), so no file names a repository.
 - **The release script** (`scripts/release.sh`): the only way the base is
   tagged. It tags the five at `v<VERSION>` only when all five declare that
   version, sit on a clean `main`, and pass `harmony.sh` (`docs/ADAPTATION.md` §7).

@@ -1,0 +1,99 @@
+name: harmony
+# scripts/harmony.sh in CI (#25): every sibling at main, the repository under
+# test at its pull request, every gate run together (AGENTS-base.md Axiom 10).
+#
+# Reusable. A private repository calls it from its own workflow with
+# `uses: PUC-Behring-AI/base-platform/.github/workflows/harmony.yml@main` and
+# `secrets: inherit`; base-platform runs it directly.
+#
+# Nothing here names a repository. Each repository's settings say which
+# siblings to check, so this public file cannot tell which projects use the
+# base:
+#   - variable HARMONY_SIBLINGS: the sibling repository names, space-separated
+#     (base-platform excluded: it is public and always checked out);
+#   - secret HARMONY_KEY_<NAME> per sibling (base-knowledge →
+#     HARMONY_KEY_BASE_KNOWLEDGE): the private half of a read-only deploy key
+#     on that sibling. GITHUB_TOKEN cannot clone a second private repository.
+# A missing variable or secret fails the run; it never skips a sibling.
+#
+# base-platform's own variable lists only base-* siblings: its logs are
+# public, and harmony prints every repository it checks.
+#
+# On the Free plan a private repository cannot require this check; it reports.
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  harmony:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository under test
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.event.repository.name }}
+
+      - name: Check out base-platform at main
+        if: github.event.repository.name != 'base-platform'
+        uses: actions/checkout@v4
+        with:
+          repository: PUC-Behring-AI/base-platform
+          path: base-platform
+
+      - name: Check out every sibling at main
+        env:
+          SIBLINGS: ${{ vars.HARMONY_SIBLINGS }}
+          KEYS: ${{ toJSON(secrets) }}
+          SELF: ${{ github.event.repository.name }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SIBLINGS" ]; then
+            echo "::error::repository variable HARMONY_SIBLINGS is not set"
+            exit 1
+          fi
+          for name in $SIBLINGS; do
+            [ "$name" = "$SELF" ] && continue
+            secret="HARMONY_KEY_$(echo "$name" | tr '[:lower:]-' '[:upper:]_')"
+            key="$(jq -r --arg s "$secret" '.[$s] // empty' <<<"$KEYS")"
+            if [ -z "$key" ]; then
+              echo "::error::secret $secret is not set"
+              exit 1
+            fi
+            keyfile="$RUNNER_TEMP/$secret"
+            printf '%s\n' "$key" > "$keyfile"
+            chmod 600 "$keyfile"
+            GIT_SSH_COMMAND="ssh -i $keyfile -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+              git clone -q --depth 1 "git@github.com:$OWNER/$name.git" "$name"
+            rm -f "$keyfile"
+          done
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install bats
+        uses: bats-core/bats-action@3.0.0
+        with:
+          bats-version: "1.11.0"
+
+      # The union of every gate's dependencies. base-knowledge is installed
+      # as a package with its test module, the way its own CI does.
+      - name: Install gate dependencies
+        run: |
+          pip install pytest pytest-cov pyyaml "jsonschema[format-nongpl]" referencing \
+            ruff httpx uvicorn fastapi bcrypt
+          if [ -d base-knowledge ]; then
+            pip install "./base-knowledge[dev]" -e ./base-knowledge/tests/fake_module
+          fi
+
+      - name: Run harmony
+        env:
+          GATE_STRICT: "1"
+        run: BASE_ROOT="$GITHUB_WORKSPACE" ./base-platform/scripts/harmony.sh "$GITHUB_WORKSPACE/${{ github.event.repository.name }}"
