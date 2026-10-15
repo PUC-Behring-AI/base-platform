@@ -23,6 +23,10 @@
 #   given on the command line, or the current directory is inside one of
 #   them: then that working tree is used instead. Run it from the worktree you
 #   are changing, and the siblings are checked against your change.
+#   Only the base layers (base-*) and the prefixes of the repositories it runs
+#   from count as siblings (Axiom 10): run from a base repository, it checks
+#   the base alone; run from <prefix>-x, it checks <prefix>-* and the base.
+#   A base repository never checks, or names, an instance.
 #   With --only, exactly the paths given are checked, and nothing else under
 #   BASE_ROOT: release.sh checks the five base layers this way, so a
 #   repository cloned next to them cannot decide whether the base is tagged.
@@ -86,6 +90,11 @@ is_worktree() {
     [ -f "$1/.git" ]
 }
 
+# A repository name's prefix: base-knowledge → base.
+prefix_of() {
+    echo "${1%%-*}"
+}
+
 # ── 1. Which working trees ───────────────────────────────────────────────────
 
 # Preferred working trees: the command-line paths, plus the repository the
@@ -131,11 +140,23 @@ consider() {
     fi
 }
 
+# The prefixes that count as siblings: the base's, and those of the
+# repositories this run starts from (base-platform's, with none given).
+scopes="base"
+for dir in ${preferred[@]+"${preferred[@]}"}; do
+    scopes="$scopes $(prefix_of "$(repo_name "$dir")")"
+done
+in_scope() {
+    case " $scopes " in *" $(prefix_of "$(repo_name "$1")") "*) return 0 ;; esac
+    return 1
+}
+
 # A layer-named repository with no "# Base:" line is not skipped in silence:
 # it is a repository of the system that cannot say which base it follows.
 unlisted=""
 [ "$only" = "yes" ] || for dir in "$BASE_ROOT"/*/; do
     dir="${dir%/}"
+    in_scope "$dir" || continue
     if is_member "$dir"; then
         consider "$dir" no
     elif [ -e "$dir/.git" ]; then

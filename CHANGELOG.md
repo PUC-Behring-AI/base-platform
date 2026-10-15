@@ -32,6 +32,19 @@ minor carries breaking changes.
   gitleaks (#39), from a release binary pinned by version and sha256, and
   fails the run on a finding. Findings are printed redacted.
 
+### Changed
+
+- `AGENTS-base.md` 1.4, **Axiom 10** (#37): the invariant splits in two. The
+  base layers' `main` branches work together at all times; an instance works
+  with the base at the version it pins, and checks that in its own CI. 1.3
+  bound the base's `main` to every instance's `main`, which contradicted
+  pinning (`ADAPTATION.md` §7, §9) and would have had the base check out, and
+  name, its consumers.
+- `scripts/harmony.sh` follows: from a base repository it checks the base
+  layers alone; from an instance, that instance's own `<prefix>-*`
+  repositories and the base. Another instance cloned alongside is no longer
+  checked, or named, by either.
+
 ### Fixed
 
 - `tests/test_harmony.py`: a fixture repository was named after a real

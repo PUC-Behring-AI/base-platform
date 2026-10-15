@@ -97,9 +97,36 @@ class TestFailures:
     def test_a_sibling_without_a_gate_fails(self, root: Path) -> None:
         _make_repo(root, "base-platform")
         _make_repo(root, "x-like", gate=None)
-        result = _run(root)
+        result = _run(root, cwd=root / "x-like")
         assert result.returncode == 1
         assert "no scripts/gate.sh" in result.stdout
+
+
+class TestScope:
+    def test_a_base_repository_checks_the_base_alone(self, root: Path) -> None:
+        platform = _make_repo(root, "base-platform")
+        _make_repo(root, "base-knowledge")
+        _make_repo(root, "x-platform", gate="echo red-instance; exit 1")
+        bare = root / "x-agents"
+        bare.mkdir()
+        _git(bare, "init", "-q", "-b", "main")
+        result = _run(root, cwd=platform)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "| base-knowledge | main |" in result.stdout
+        assert "x-platform" not in result.stdout
+        assert "x-agents" not in result.stdout
+
+    def test_an_instance_checks_its_own_siblings_and_the_base(self, root: Path) -> None:
+        _make_repo(root, "base-platform")
+        _make_repo(root, "x-knowledge")
+        instance = _make_repo(root, "x-platform")
+        _make_repo(root, "y-platform", gate="echo red-other-instance; exit 1")
+        result = _run(root, cwd=instance)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "| base-platform | main |" in result.stdout
+        assert "| x-knowledge | main |" in result.stdout
+        assert "| x-platform | main |" in result.stdout
+        assert "y-platform" not in result.stdout
 
 
 class TestWarnings:
@@ -112,12 +139,12 @@ class TestWarnings:
 
     def test_a_layer_named_repository_without_a_base_line_warns(self, root: Path) -> None:
         _make_repo(root, "base-platform")
-        bare = root / "x-platform"
+        bare = root / "base-extra"
         bare.mkdir()
         _git(bare, "init", "-q", "-b", "main")
         result = _run(root)
         assert result.returncode == 0
-        assert "not checked" in result.stdout and "x-platform" in result.stdout
+        assert "not checked" in result.stdout and "base-extra" in result.stdout
 
     def test_no_left_out_warning_when_a_worktree_of_it_was_checked(self, root: Path) -> None:
         _make_repo(root, "base-platform")
