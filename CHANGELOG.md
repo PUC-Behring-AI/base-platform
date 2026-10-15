@@ -34,6 +34,9 @@ minor carries breaking changes.
 
 ### Changed
 
+- `.github/workflows/issue-hygiene.yml` (#41) is reusable (`workflow_call`).
+  `ADAPTATION.md` §3 gives the caller, so a repository calls the one rule
+  instead of carrying a copy that keeps the old rule when this one changes.
 - `AGENTS-base.md` 1.4, **Axiom 10** (#37): the invariant splits in two. The
   base layers' `main` branches work together at all times; an instance works
   with the base at the version it pins, and checks that in its own CI. 1.3

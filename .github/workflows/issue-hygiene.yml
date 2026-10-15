@@ -4,8 +4,14 @@ name: issue hygiene
 # pre-creation hook the way a git push does. This is the closest equivalent:
 # flag it immediately after creation, in place of the PreToolUse hook this
 # base used to depend on to enforce it before the issue ever reached GitHub.
+#
+# Reusable, like harmony.yml: every other repository calls it from its own
+# `issues: opened` workflow (docs/ADAPTATION.md §3) instead of carrying a
+# copy, so a change to the rule here reaches all of them. A called workflow
+# sees the caller's event, so context.payload.issue is the caller's issue.
 
 on:
+  workflow_call:
   issues:
     types: [opened]
 

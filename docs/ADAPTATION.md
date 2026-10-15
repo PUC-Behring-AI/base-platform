@@ -100,6 +100,23 @@ is declared. That is not a weak gate — it is the whole floor a
 documentation-only repository has to clear, and inventing more would mean
 checking something that does not exist yet.
 
+One more file, so the issue rule is not copied either.
+**`.github/workflows/issue-hygiene.yml`** — calls `base-platform`'s, which
+comments on a new issue opened without the `### Vizinhas` heading. It is
+reusable, like `harmony.yml`. An instance calls it at the tag it pins (§7),
+from the first version after 0.5.0 on; a `base-*` repository calls it at
+`@main`:
+
+    name: issue hygiene
+    on:
+      issues:
+        types: [opened]
+    permissions:
+      issues: write
+    jobs:
+      check-vizinhas:
+        uses: PUC-Behring-AI/base-platform/.github/workflows/issue-hygiene.yml@v<base>
+
 ### Plan limits — what the gate cannot do here, and why
 
 `docs/AGENTS-base.md` says the CI "is a required check, **wherever branch
