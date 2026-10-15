@@ -38,6 +38,11 @@
 #                                                       SKIPPED if there are
 #                                                       none, shellcheck only
 #                                                       if installed
+#   - a base repository names no instance            → FAILS on a hit of the
+#     (scripts/leak-check.sh)                           denylist, WARNS that it
+#                                                       is not active when no
+#                                                       list is given, SKIPPED
+#                                                       in an instance
 #
 # A repository with no code yet — every base-* engine on day one — passes on
 # the first two checks alone. That is correct, not a loophole: there is
@@ -232,6 +237,27 @@ else
         _skip "shellcheck não instalado (brew install shellcheck)"
     fi
 fi
+
+# ── 7. A base não nomeia instâncias ──────────────────────────────────────────
+# A lista de nomes vem de fora (segredo BASE_DENYLIST no CI, ou um arquivo
+# local em BASE_DENYLIST_FILE): escrita aqui, ela seria o vazamento. Numa
+# instância a verificação não se aplica — ela se nomeia por definição.
+
+_step "nomes de instância"
+origin="$(git -C "$TARGET_DIR" remote get-url origin 2>/dev/null)" || origin=""
+if [ -n "$origin" ]; then
+    repo_name="$(basename "${origin%.git}")"
+else
+    repo_name="$(basename "$TARGET_DIR")"
+fi
+case "$repo_name" in
+    base-*)
+        "$SCRIPT_DIR/leak-check.sh" "$TARGET_DIR" || _fail "um repositório da base nomeia uma instância — veja acima (base-platform#34)"
+        ;;
+    *)
+        _skip "$repo_name não é um repositório base-* — a lista protege a base, não a instância"
+        ;;
+esac
 
 echo ""
 echo "${BOLD}${GREEN}Portão passou.${RESET} Pode abrir o PR."

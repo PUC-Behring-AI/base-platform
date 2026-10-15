@@ -4,6 +4,9 @@ name: gate
 # four layer repositories each carry a thin variant of this file that also
 # checks out base-platform, matching the sibling-directory assumption
 # scripts/gate.sh and compose.base.yaml both make. See docs/ADAPTATION.md §3.
+#
+# On a pull request the gate's name check also reads the pull request's
+# commit messages and body; the denylist comes from a secret (#34).
 
 on:
   pull_request:
@@ -18,6 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -27,4 +32,8 @@ jobs:
         run: pip install pytest pyyaml "jsonschema[format-nongpl]" ruff
 
       - name: Run the shared gate
+        env:
+          BASE_DENYLIST: ${{ secrets.BASE_DENYLIST }}
+          LEAK_CHECK_RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || '' }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: ./scripts/gate.sh

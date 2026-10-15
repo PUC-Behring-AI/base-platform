@@ -19,6 +19,16 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/leak-check.sh` (#34), run by the shared gate in every `base-*`
+  repository: fails when a tracked path or file, a pull request's commit
+  message or its body contains a term of a denylist read from the
+  `BASE_DENYLIST` secret or a local `BASE_DENYLIST_FILE` — never written in
+  this repository. A hit names the place and the term's number, never the
+  term. With no list given the check warns that it is not active. Skipped in
+  an instance, which names itself.
+
 ### Fixed
 
 - `tests/test_harmony.py`: a fixture repository was named after a real
