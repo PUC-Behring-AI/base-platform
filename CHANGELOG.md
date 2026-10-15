@@ -47,6 +47,10 @@ minor carries breaking changes.
 
 ### Fixed
 
+- `ADAPTATION.md` §4 (#40): `base-agents` is listed with its socket issue
+  (base-agents#9) next to the other layers that will take code, and
+  `tiers.yaml` is marked pending — nothing reads it yet; base-inference#106
+  defines it.
 - `tests/test_harmony.py`: a fixture repository was named after a real
   instance prefix; it is `x-like` now (#34). A test name is as public as a
   document.

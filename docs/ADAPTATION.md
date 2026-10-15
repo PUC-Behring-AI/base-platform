@@ -153,7 +153,7 @@ and section 5 covers it.
 | Layer | The instance declares |
 |---|---|
 | `knowledge` | `ontology/` (RDF/OWL), `connectors/` (sources), `taxonomy.yaml` |
-| `inference` | `models.yaml` (served models and where each runs), `tiers.yaml` |
+| `inference` | `models.yaml` (served models and where each runs); `tiers.yaml` is pending — nothing reads it yet, and base-inference#106 defines it |
 | `agents` | `flows/`, `prompts/`, `tools/` (MCP declarations) |
 | `interface` | `forms/`, `views/` |
 | `platform` | `schemas/` (C1–C6 payloads), `base-version.yaml` |
@@ -252,7 +252,8 @@ Kubernetes target, a registry comes with it.
 
 The engines do not implement this yet. Each layer's issue tracks its own half:
 the extension-point issue in `base-knowledge`, `base-inference` and
-`base-interface`, all citing the convention written here.
+`base-interface`, and the socket issue in `base-agents` (base-agents#9), all
+citing the convention written here.
 
 ## 5. Write the code that is only yours
 
