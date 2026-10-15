@@ -19,12 +19,12 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
-## [0.5.0] — unreleased
+## [0.5.0] — 2026-10-15
 
-Not tagged until every layer fulfils it (`docs/ADAPTATION.md` §7):
-`base-knowledge` waits on its C7 client (base-knowledge#16), `base-inference`
-on its embedding model kind (base-inference#108). This is the first version
-tagged after 0.2.0 — 0.3.0 and 0.4.0 never were.
+The first version tagged after 0.2.0 — 0.3.0 and 0.4.0 never were. Tagged
+when all five layers fulfilled it (`docs/ADAPTATION.md` §7): `base-knowledge`
+with its C7 client (base-knowledge#16), `base-inference` with its embedding
+model kind (base-inference#108).
 
 C7 opens the first arrow out of `knowledge`, to an embedding model, and the
 instance socket convention (ADR-011) lands with it.
@@ -53,6 +53,9 @@ instance socket convention (ADR-011) lands with it.
   is the only way to tag: it checks the five agree, are on a clean `main`, and
   pass `harmony.sh`. The shared gate now fails on a `# Base:` newer than
   `VERSION`. §9 no longer promises a weekly train that never ran.
+- `.github/workflows/harmony.yml` (#25): harmony.sh in CI, reusable by every
+  repository. Each repository's settings name its siblings and hold a
+  read-only deploy key per private sibling; no file names a repository.
 - `ADAPTATION.md` §4: where an engine reads its instance (`BASE_INSTANCE_DIR`,
   mounted read-only; unset means empty, invalid means refuse to start), how
   instance code enters an engine (entry-point group `base_<layer>.modules`,
@@ -61,6 +64,12 @@ instance socket convention (ADR-011) lands with it.
 
 ### Fixed
 
+- `schemas/validate.py` (#21): `validator_for` checks `format`, so a
+  `request_id` that is not a uuid is refused instead of reaching the C6 store.
+  It refuses to build where a format the schemas use has no checker: every
+  layer that validates installs `jsonschema[format-nongpl]`.
+- `compose.base.yaml` (#30): Compose v2 refused the file ("conflicts with
+  imported resource"). Each override is now merged inside its include entry.
 - `docs/CONTRACTS.md`: the C6 section had lost its heading and read as part of C5.
 - `ADAPTATION.md` §4: the `taxonomy.yaml` example spelled `key-policy`; the
   schema field is `key_policy`. `models.yaml` no longer claims a "key policy
@@ -348,5 +357,6 @@ built against, not which code it runs.
   version check, `CODEOWNERS` is inert, and two candidate library dependencies
   were assumed rather than verified.
 
+[0.5.0]: https://github.com/PUC-Behring-AI/base-platform/releases/tag/v0.5.0
 [0.2.0]: https://github.com/PUC-Behring-AI/base-platform/releases/tag/v0.2.0
 [0.1.0]: https://github.com/PUC-Behring-AI/base-platform/releases/tag/v0.1.0
