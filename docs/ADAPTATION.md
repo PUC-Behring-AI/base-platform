@@ -60,8 +60,11 @@ assumption `compose.base.yaml` makes):
 Make it executable: `chmod +x scripts/gate.sh`.
 
 **`.github/workflows/gate.yml`** — checks out this repository and
-`base-platform` as siblings, then runs `./scripts/gate.sh`, on every pull
-request:
+`base-platform` as siblings, `base-platform` at the tag the instance pins
+(§7), then runs `./scripts/gate.sh`, on every pull request. Every layer but
+`<prefix>-platform` also checks out `<prefix>-platform`, where the pin lives;
+it is private, so that checkout takes a read-only deploy key, held in the
+secret the harmony workflow already uses, `HARMONY_KEY_<PREFIX>_PLATFORM`:
 
     name: gate
     on: [pull_request]
@@ -77,7 +80,13 @@ request:
           - uses: actions/checkout@v4
             with:
               repository: PUC-Behring-AI/base-platform
+              ref: v<base>
               path: base-platform
+          - uses: actions/checkout@v4   # not in <prefix>-platform itself
+            with:
+              repository: PUC-Behring-AI/<prefix>-platform
+              ssh-key: ${{ secrets.HARMONY_KEY_<PREFIX>_PLATFORM }}
+              path: <prefix>-platform
           - uses: actions/setup-python@v5
             with:
               python-version: "3.11"
@@ -96,9 +105,10 @@ request:
 
 Run the gate once before the first commit. On a repository with no code yet,
 it checks two things and passes: the living docs exist, and the base version
-is declared. That is not a weak gate — it is the whole floor a
-documentation-only repository has to clear, and inventing more would mean
-checking something that does not exist yet.
+is declared — in an instance, declared and pinned alike (§7). That is not a
+weak gate — it is the whole floor a documentation-only repository has to
+clear, and inventing more would mean checking something that does not exist
+yet.
 
 One more file, so the issue rule is not copied either.
 **`.github/workflows/issue-hygiene.yml`** — calls `base-platform`'s, which
@@ -305,7 +315,7 @@ changed between one and the next.
 An instance records the version it runs on, in
 `<prefix>-platform/base-version.yaml`:
 
-    base: 0.2.0
+    base: 0.5.0
 
 One number, not five. A single version means the combination has been released
 together, so "was this set tested against itself?" has an answer. Per-layer
@@ -313,6 +323,22 @@ pinning would be more precise and would lose exactly that.
 
 The cost is real and worth knowing: a fix in one engine bumps the version of all
 five. That is deliberate — the alternative is five numbers nobody reconciles.
+
+**The gate checks the pin.** In every `<prefix>-*` repository the shared gate
+reads `base-version.yaml` — in the repository itself for `<prefix>-platform`,
+in the sibling `<prefix>-platform` for the other four — and fails when:
+
+- the file cannot be found, naming the path it looked at;
+- the repository's `# Base:` line names another version;
+- the tag `v<base>` does not exist in `base-platform`;
+- any other place that states the version disagrees: a workflow's
+  `uses: …/base-*/…@ref`, a checkout `ref:` of a `base-*` repository, a
+  `base_ref:` passed to the harmony workflow, or a Dockerfile's
+  `ARG BASE_TAG=` or `FROM base-*:tag`.
+
+So the version is stated once in fact and the rest are checked against it. A
+pin that names an untagged version, or a workflow that still runs the base at
+`main`, fails the pull request instead of passing as if it were tested.
 
 **What a repository's `# Base: vX.Y.Z` line claims.** That the repository
 does everything version X.Y.Z asks of its layer — not only that it was read

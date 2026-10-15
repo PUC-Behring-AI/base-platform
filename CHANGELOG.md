@@ -31,6 +31,19 @@ minor carries breaking changes.
 - The gate workflow scans each pull request's diff and commit messages with
   gitleaks (#39), from a release binary pinned by version and sha256, and
   fails the run on a finding. Findings are printed redacted.
+- **Instances: the shared gate checks the pin** (#38, `ADAPTATION.md` §7). In
+  every `<prefix>-*` repository it reads `<prefix>-platform/base-version.yaml`
+  and fails when the file is missing, when the `# Base:` line, a workflow's
+  `@ref` on a `base-*` repository, a `base-*` checkout `ref:`, a `base_ref:`
+  or a Dockerfile's base image tag disagrees with it, or when its tag does
+  not exist. An instance acts before its next pull request on a base that
+  carries this: write `base-version.yaml`, pin every reference to the tag,
+  and check `<prefix>-platform` out in the other layers' gate workflow (§3).
+  Not breaking for `base-*` repositories, where the step is skipped.
+- `.github/workflows/harmony.yml` takes `inputs.base_ref` (default `main`):
+  a caller pinning `vX.Y.Z` gets `base-platform` and every `base-*` sibling
+  at that tag, instead of at `main` whatever `@ref` it called. The §3 gate
+  template checks `base-platform` out at the pinned tag too.
 
 ### Changed
 

@@ -25,6 +25,12 @@
 #                                                       absent or newer than
 #                                                       VERSION, WARNS if the
 #                                                       version is older
+#   - in an instance, every place that states the    → FAILS if any disagrees,
+#     base version agrees, and its tag exists           if the tag is missing,
+#                                                       or if base-version.yaml
+#                                                       cannot be found;
+#                                                       SKIPPED in a base-*
+#                                                       repository
 #   - every *.yml / *.yaml file parses               → FAILS if any is invalid
 #   - a Python test suite, if one exists             → FAILS if red or if
 #                                                       pytest is missing,
@@ -119,6 +125,133 @@ elif _newer "$declared" "$current"; then
 else
     _warn "declara v$declared; a base atual é v$current — ver base-platform/CHANGELOG.md antes de decidir se vale atualizar"
 fi
+
+# ── 2b. Pino da base, numa instância ─────────────────────────────────────────
+# Uma instância diz em que versão da base roda em vários lugares: a linha
+# '# Base:', <prefix>-platform/base-version.yaml, o @ref de um workflow de
+# base-*, o ref de um checkout de base-*, o base_ref passado ao harmony e a
+# tag de uma imagem base-*. Se discordam, ou se a tag não existe, o pino
+# documenta uma esperança e não um fato (base-platform#38). Um repositório
+# base-* não tem pino: ele É a versão.
+
+_step "pino da base"
+# O nome vem do remote (um worktree tem outro nome de diretório); sem remote,
+# do diretório. O passo 7 também usa repo_name.
+origin="$(git -C "$TARGET_DIR" remote get-url origin 2>/dev/null)" || origin=""
+if [ -n "$origin" ]; then
+    repo_name="$(basename "${origin%.git}")"
+else
+    repo_name="$(basename "$TARGET_DIR")"
+fi
+case "$repo_name" in
+    base-*)
+        _skip "$repo_name é um repositório da base — o pino é de cada instância"
+        ;;
+    *)
+        # <prefix>-<camada>: o pino mora em <prefix>-platform, irmão deste.
+        prefix="${repo_name%-*}"
+        if [ "$repo_name" = "$prefix-platform" ]; then
+            pin_file="$TARGET_DIR/base-version.yaml"
+        else
+            pin_file="$(dirname "$TARGET_DIR")/$prefix-platform/base-version.yaml"
+        fi
+        [ -f "$pin_file" ] || _fail "$repo_name é uma instância e $pin_file não existe — sem ele não há pino a conferir (docs/ADAPTATION.md §7)"
+        pinned="$(python3 - "$pin_file" <<'PY'
+import re
+import sys
+
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    value = str((yaml.safe_load(fh) or {}).get("base", ""))
+if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", value):
+    sys.exit(f"{sys.argv[1]}: 'base: X.Y.Z' ausente ou malformado (achou {value!r})")
+print(value)
+PY
+)" || _fail "base-version.yaml ilegível — veja acima"
+
+        [ "$declared" = "$pinned" ] || _fail "AGENTS.md declara v$declared e $pin_file fixa $pinned — os dois dizem a mesma versão ou nenhum diz a verdade"
+
+        # BASE_PLATFORM_REMOTE existe para os testes rodarem sem rede.
+        remote="${BASE_PLATFORM_REMOTE:-}"
+        if [ -z "$remote" ]; then
+            remote="$(git -C "$BASE_PLATFORM_DIR" remote get-url origin)" \
+                || _fail "$BASE_PLATFORM_DIR não tem remote origin — sem ele não sei onde procurar a tag v$pinned"
+        fi
+        tags="$(git ls-remote --tags "$remote" "refs/tags/v$pinned")" \
+            || _fail "não consegui listar as tags de $remote — sem isso não sei se v$pinned existe"
+        [ -n "$tags" ] || _fail "a tag v$pinned não existe em $remote — o pino aponta para uma versão nunca lançada (docs/ADAPTATION.md §7)"
+
+        refs_ok=0
+        python3 - "$TARGET_DIR" "v$pinned" <<'PY' || refs_ok=1
+import re
+import sys
+from pathlib import Path
+
+import yaml
+
+root, want = Path(sys.argv[1]), sys.argv[2]
+base_repo = re.compile(r"^[^/]+/base-[^/@]+")
+bad, seen = [], 0
+
+
+def walk(node, where):
+    global seen
+    if isinstance(node, list):
+        for item in node:
+            walk(item, where)
+        return
+    if not isinstance(node, dict):
+        return
+    uses = node.get("uses")
+    with_ = node.get("with") if isinstance(node.get("with"), dict) else {}
+    if isinstance(uses, str) and base_repo.match(uses) and "@" in uses:
+        seen += 1
+        if uses.rsplit("@", 1)[1] != want:
+            bad.append(f"{where}: uses {uses} (esperado @{want})")
+    if isinstance(uses, str) and uses.startswith("actions/checkout@"):
+        repo = str(with_.get("repository", ""))
+        if base_repo.fullmatch(repo):
+            seen += 1
+            if with_.get("ref") != want:
+                bad.append(f"{where}: checkout de {repo} com ref {with_.get('ref')!r} (esperado {want})")
+    if "base_ref" in with_:
+        seen += 1
+        if with_["base_ref"] != want:
+            bad.append(f"{where}: base_ref {with_['base_ref']!r} (esperado {want})")
+    for value in node.values():
+        walk(value, where)
+
+
+workflows = root / ".github" / "workflows"
+for path in sorted([*workflows.glob("*.yml"), *workflows.glob("*.yaml")]):
+    with open(path, encoding="utf-8") as fh:
+        walk(yaml.safe_load(fh), path.relative_to(root))
+
+# A tag de uma imagem base-*, literal ou no default de ARG BASE_TAG; um FROM
+# que usa a variável é conferido pelo ARG.
+arg = re.compile(r"^\s*ARG\s+BASE_TAG=(\S+)", re.I)
+frm = re.compile(r"^\s*FROM\s+(?:--\S+\s+)*(?:\S*/)?base-[^:\s/]+:([^\s@]+)", re.I)
+skip = {".git", "node_modules", ".venv"}
+for path in sorted(root.rglob("Dockerfile*")) + sorted(root.rglob("*.Dockerfile")):
+    if skip & set(path.relative_to(root).parts) or not path.is_file():
+        continue
+    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        m = arg.match(line) or frm.match(line)
+        if m and not m.group(1).startswith("$"):
+            seen += 1
+            if m.group(1) != want:
+                bad.append(f"{path.relative_to(root)}:{n}: tag {m.group(1)} (esperado {want})")
+
+if bad:
+    print("\n".join(bad), file=sys.stderr)
+    sys.exit(1)
+print(f"{seen} referência(s) à base em workflows e Dockerfiles")
+PY
+        [ "$refs_ok" -eq 0 ] || _fail "uma referência à base discorda de base-version.yaml ($pinned) — veja acima"
+        _ok "v$pinned — AGENTS.md, $pin_file, a tag e as referências concordam"
+        ;;
+esac
 
 # ── 3. YAML válido ───────────────────────────────────────────────────────────
 
@@ -244,12 +377,7 @@ fi
 # instância a verificação não se aplica — ela se nomeia por definição.
 
 _step "nomes de instância"
-origin="$(git -C "$TARGET_DIR" remote get-url origin 2>/dev/null)" || origin=""
-if [ -n "$origin" ]; then
-    repo_name="$(basename "${origin%.git}")"
-else
-    repo_name="$(basename "$TARGET_DIR")"
-fi
+# repo_name vem do passo 2b.
 case "$repo_name" in
     base-*)
         "$SCRIPT_DIR/leak-check.sh" "$TARGET_DIR" || _fail "um repositório da base nomeia uma instância — veja acima (base-platform#34)"
