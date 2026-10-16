@@ -1,16 +1,10 @@
 name: harmony
-# scripts/harmony.sh in CI (#25): every sibling checked out, the repository
-# under test at its pull request, every gate run together (AGENTS-base.md
-# Axiom 10).
+# scripts/harmony.sh in CI (#25): every sibling at main, the repository under
+# test at its pull request, every gate run together (AGENTS-base.md Axiom 10).
 #
 # Reusable. A private repository calls it from its own workflow with
-# `uses: PUC-Behring-AI/base-platform/.github/workflows/harmony.yml@vX.Y.Z`,
-# `with: base_ref: vX.Y.Z` and `secrets: inherit` — the version its
-# base-version.yaml pins (#38). base-platform and every base-* sibling are
-# checked out at base_ref; the instance's own siblings at their default
-# branch. The @ref alone does not do it: it picks this file, not what the
-# file checks out. base_ref defaults to main, which is what base-platform's
-# own runs (pull_request, push) use.
+# `uses: PUC-Behring-AI/base-platform/.github/workflows/harmony.yml@main` and
+# `secrets: inherit`; base-platform runs it directly.
 #
 # Nothing here names a repository. Each repository's settings say which
 # siblings to check, so this public file cannot tell which projects use the
@@ -29,11 +23,6 @@ name: harmony
 
 on:
   workflow_call:
-    inputs:
-      base_ref:
-        description: The base version the caller pins (vX.Y.Z); base-* repositories are checked out at it
-        type: string
-        default: main
   pull_request:
   push:
     branches: [main]
@@ -50,17 +39,15 @@ jobs:
         with:
           path: ${{ github.event.repository.name }}
 
-      - name: Check out base-platform at base_ref
+      - name: Check out base-platform at main
         if: github.event.repository.name != 'base-platform'
         uses: actions/checkout@v4
         with:
           repository: PUC-Behring-AI/base-platform
-          ref: ${{ inputs.base_ref || 'main' }}
           path: base-platform
 
-      - name: Check out every sibling, base-* at base_ref
+      - name: Check out every sibling at main
         env:
-          BASE_REF: ${{ inputs.base_ref || 'main' }}
           SIBLINGS: ${{ vars.HARMONY_SIBLINGS }}
           KEYS: ${{ toJSON(secrets) }}
           SELF: ${{ github.event.repository.name }}
@@ -82,10 +69,8 @@ jobs:
             keyfile="$RUNNER_TEMP/$secret"
             printf '%s\n' "$key" > "$keyfile"
             chmod 600 "$keyfile"
-            branch=()
-            case "$name" in base-*) branch=(--branch "$BASE_REF") ;; esac
             GIT_SSH_COMMAND="ssh -i $keyfile -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
-              git clone -q --depth 1 "${branch[@]}" "git@github.com:$OWNER/$name.git" "$name"
+              git clone -q --depth 1 "git@github.com:$OWNER/$name.git" "$name"
             rm -f "$keyfile"
           done
 
