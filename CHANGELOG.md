@@ -19,6 +19,30 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-16
+
+### Note on the five repositories' history
+
+All five base repositories had their history rewritten on 2026-10-16, and
+`base-platform` was deleted and recreated a second time. The 2026-09-14 purge
+had replaced a client's, a contract's and a methodology's names but left an
+instance prefix and a description of its domain in three commits, and one
+commit message carried a pasted service configuration with credentials. The
+private repositories carried the same names in their bootstrap commits and
+specs, and test fixtures carried one domain's vocabulary.
+
+What it means for anyone holding the base:
+
+- `v0.1.0`, `v0.2.0` and `v0.5.0` point at rewritten commits. Their trees are
+  the same except for the removed text. A clone made before 2026-10-16 must be
+  deleted and cloned again; pushing from it would bring the old history back.
+- In `base-platform`, issue and pull-request numbers are kept: open issues were
+  recreated at their numbers, closed ones with their text, and every pull
+  request as a closed issue whose branch and diff are gone.
+- The credentials belonged to the precursor's deployment. The base reads none
+  of them; any deployment of the base sets its own.
+
+
 ### Added
 
 - `scripts/leak-check.sh` (#34), run by the shared gate in every `base-*`
@@ -289,7 +313,8 @@ own PR links no longer resolve.
   of `README.md` and `docs/ADAPTATION.md` — all already superseded by commit
   `4a3bb54` — named the client, the contract number, and the confidential
   methodology, and remained reachable from `origin/main` regardless. Purged
-  from every ref with `git filter-repo` on 2026-09-14; `v0.1.0` and `v0.2.0`
+  from every ref with `git filter-repo` on 2026-09-14 (incompletely — see
+  the note under [0.6.0]); `v0.1.0` and `v0.2.0`
   were retagged onto the rewritten history. This repository was private for
   the entire time the leak was reachable; it is made public only after this
   purge, precisely so that making it public does not repeat the incident a

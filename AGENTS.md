@@ -1,7 +1,7 @@
 # AGENTS.md — base-platform
 # Follows AGENTS-base.md v1.4, at docs/AGENTS-base.md — this repository hosts
 # that file, and still follows it like every other repository in the base.
-# Base: v0.5.0
+# Base: v0.6.0
 
 ## Project
 
