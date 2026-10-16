@@ -19,6 +19,21 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- The gate and harmony find the sibling repositories beside the main
+  checkout, also when run from a worktree (`.claude/worktrees/<name>`). Before,
+  the gate looked for `<prefix>-platform/base-version.yaml` inside the
+  worktrees directory and failed, harmony run from a base-platform worktree
+  silently dropped every sibling, and `tests/test_compose_base.py` skipped
+  (#15). The gate now exports `BASE_<NAME>_DIR` for every base sibling it
+  finds, unless one is already set, so a test suite run through it sees the
+  same siblings.
+- harmony checks the working tree given on the command line, not the one the
+  current directory is in, when both belong to the same repository (#31).
+- The gate wrapper in `docs/ADAPTATION.md` §3 finds `base-platform` beside the
+  main checkout. Each repository's copy changes in its own pull request.
+
 ## [0.6.0] — 2026-10-16
 
 ### Note on the five repositories' history

@@ -50,7 +50,10 @@ assumption `compose.base.yaml` makes):
     # copy it. See base-platform/scripts/gate.sh for what it checks.
     set -euo pipefail
     HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    BASE_PLATFORM_DIR="${BASE_PLATFORM_DIR:-$HERE/../base-platform}"
+    # Beside the main checkout, not beside HERE: from a worktree
+    # (.claude/worktrees/<name>), HERE/.. is the worktrees directory.
+    MAIN="$(dirname "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)")"
+    BASE_PLATFORM_DIR="${BASE_PLATFORM_DIR:-$MAIN/../base-platform}"
     if [ ! -x "$BASE_PLATFORM_DIR/scripts/gate.sh" ]; then
         echo "base-platform not found at $BASE_PLATFORM_DIR — clone it as a sibling, or set BASE_PLATFORM_DIR" >&2
         exit 1

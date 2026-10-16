@@ -16,12 +16,13 @@
 # can break before it is proposed, not after it is merged.
 #
 # Which repositories:
-#   every directory under BASE_ROOT (default: the parent of this
-#   base-platform) whose AGENTS.md declares "# Base: vX.Y.Z". Each is named
+#   every directory under BASE_ROOT (default: the directory beside this
+#   base-platform's main checkout, also when run from a worktree) whose AGENTS.md declares "# Base: vX.Y.Z". Each is named
 #   after its origin remote, so a worktree and its main checkout are the same
 #   repository. When both exist, the main checkout is used — unless a path is
 #   given on the command line, or the current directory is inside one of
-#   them: then that working tree is used instead. Run it from the worktree you
+#   them: then that working tree is used instead, and a path on the command
+#   line wins over the current directory. Run it from the worktree you
 #   are changing, and the siblings are checked against your change.
 #   Only the base layers (base-*) and the prefixes of the repositories it runs
 #   from count as siblings (Axiom 10): run from a base repository, it checks
@@ -53,7 +54,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 THIS_PLATFORM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-BASE_ROOT="$(cd "${BASE_ROOT:-$THIS_PLATFORM_DIR/..}" && pwd)"
+# The default BASE_ROOT is the directory beside base-platform's main checkout.
+# Run from a worktree (base-platform/.claude/worktrees/<name>), the directory
+# beside THIS_PLATFORM_DIR is the worktrees directory, and every sibling would
+# drop out of the run in silence (#15).
+_common="$(git -C "$THIS_PLATFORM_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [ -n "$_common" ]; then
+    _default_root="$(dirname "$(dirname "$_common")")"
+else
+    _default_root="$THIS_PLATFORM_DIR/.."
+fi
+BASE_ROOT="$(cd "${BASE_ROOT:-$_default_root}" && pwd)"
 export BASE_ROOT
 
 if [ -t 1 ] && command -v tput &>/dev/null; then
@@ -105,17 +116,20 @@ if [ "${1:-}" = "--only" ]; then
     shift
     [ "$#" -gt 0 ] || { echo "${RED}--only needs at least one repository path${RESET}" >&2; exit 2; }
 fi
+# The current directory's repository goes first: a path given on the command
+# line names the working tree to check and has to win over it (#31), and the
+# last one of a repository considered below is the one used.
 preferred=()
+here="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ "$only" = "no" ] && [ -n "$here" ] && is_member "$here"; then
+    preferred+=("$here")
+fi
 for p in "$@"; do
     [ -d "$p" ] || { echo "${RED}not a directory:${RESET} $p" >&2; exit 2; }
     p="$(cd "$p" && pwd)"
     is_member "$p" || { echo "${RED}not a repository of the base (no '# Base:' line in AGENTS.md):${RESET} $p" >&2; exit 2; }
     preferred+=("$p")
 done
-here="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [ "$only" = "no" ] && [ -n "$here" ] && is_member "$here"; then
-    preferred+=("$here")
-fi
 
 names=()
 paths=()

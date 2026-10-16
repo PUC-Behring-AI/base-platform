@@ -90,11 +90,12 @@ def _repo(
     return repo
 
 
-def _gate(repo: Path, remote: Path) -> subprocess.CompletedProcess:
+def _gate(repo: Path, remote: Path, *, cwd: Path | None = None) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if not k.startswith("BASE_")}
     env["BASE_PLATFORM_REMOTE"] = str(remote)
     return subprocess.run(
         ["bash", str(GATE), str(repo)],
+        cwd=cwd,
         capture_output=True,
         text=True,
         timeout=60,
@@ -168,3 +169,38 @@ class TestDisagreeing:
         result = _gate(repo, _remote(root, tagged=True))
         assert result.returncode == 1
         assert str(root / "x-platform" / "base-version.yaml") in result.stderr
+
+
+class TestFromAWorktree:
+    """base-platform#15: from <repo>/.claude/worktrees/<x>, the siblings sit
+    beside the main checkout, not beside the worktree."""
+
+    @staticmethod
+    def _worktree(repo: Path) -> Path:
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "-m", "init")
+        worktree = repo / ".claude" / "worktrees" / "wt"
+        _git(repo, "worktree", "add", "-q", str(worktree), "-b", "wt")
+        return worktree
+
+    def test_the_pin_is_read_beside_the_main_checkout(self, root: Path) -> None:
+        _repo(root, "x-platform", pin=VERSION)
+        worktree = self._worktree(_repo(root, "x-knowledge"))
+        result = _gate(worktree, _remote(root, tagged=True))
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert str(root.resolve() / "x-platform" / "base-version.yaml") in result.stdout
+
+    def test_the_test_suite_sees_the_base_siblings_of_the_main_checkout(self, root: Path) -> None:
+        _repo(root, "x-platform", pin=VERSION)
+        (root / "base-knowledge").mkdir()
+        repo = _repo(root, "x-knowledge")
+        (repo / "pyproject.toml").write_text("")
+        (repo / "tests").mkdir()
+        expected = str(root.resolve() / "base-knowledge")
+        (repo / "tests" / "test_env.py").write_text(
+            "import os\n\n\ndef test_env():\n"
+            f"    assert os.environ.get('BASE_KNOWLEDGE_DIR') == {expected!r}\n"
+        )
+        worktree = self._worktree(repo)
+        result = _gate(worktree, _remote(root, tagged=True), cwd=worktree)
+        assert result.returncode == 0, result.stdout + result.stderr
