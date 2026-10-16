@@ -68,6 +68,30 @@ BASE_PLATFORM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TARGET_DIR="$(cd "${1:-$BASE_PLATFORM_DIR}" && pwd)"
 cd "$TARGET_DIR"
 
+# The siblings sit beside the main checkout. From a worktree
+# (<repo>/.claude/worktrees/<name>), the directory beside TARGET_DIR is the
+# worktrees directory, where no sibling ever is (base-platform#15). git's
+# common dir is the main checkout's .git from a worktree, and the repository's
+# own .git outside one.
+_common="$(git -C "$TARGET_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || _common=""
+if [ -n "$_common" ]; then
+    MAIN_CHECKOUT="$(dirname "$_common")"
+else
+    MAIN_CHECKOUT="$TARGET_DIR"
+fi
+SIBLINGS_DIR="$(dirname "$MAIN_CHECKOUT")"
+
+# Every base-* sibling, for the suite and the scripts this gate runs: the
+# variables schema_bridge.py and the cross-layer tests read. One already set
+# wins (CI, harmony, another layout); BASE_PLATFORM_DIR is this gate's own.
+export BASE_PLATFORM_DIR
+for _dir in "$SIBLINGS_DIR"/base-*/; do
+    [ -d "$_dir" ] || continue
+    _var="$(basename "$_dir" | tr '[:lower:]-' '[:upper:]_')_DIR"
+    [ "$_var" = "BASE_PLATFORM_DIR" ] && continue
+    [ -n "${!_var:-}" ] || export "$_var=${_dir%/}"
+done
+
 if [ -t 1 ] && command -v tput &>/dev/null; then
     BOLD="$(tput bold)"; GREEN="$(tput setaf 2)"; RED="$(tput setaf 1)"
     YELLOW="$(tput setaf 3)"; RESET="$(tput sgr0)"
@@ -136,12 +160,12 @@ fi
 
 _step "pino da base"
 # O nome vem do remote (um worktree tem outro nome de diretório); sem remote,
-# do diretório. O passo 7 também usa repo_name.
+# do diretório do checkout principal. O passo 7 também usa repo_name.
 origin="$(git -C "$TARGET_DIR" remote get-url origin 2>/dev/null)" || origin=""
 if [ -n "$origin" ]; then
     repo_name="$(basename "${origin%.git}")"
 else
-    repo_name="$(basename "$TARGET_DIR")"
+    repo_name="$(basename "$MAIN_CHECKOUT")"
 fi
 case "$repo_name" in
     base-*)
@@ -153,7 +177,7 @@ case "$repo_name" in
         if [ "$repo_name" = "$prefix-platform" ]; then
             pin_file="$TARGET_DIR/base-version.yaml"
         else
-            pin_file="$(dirname "$TARGET_DIR")/$prefix-platform/base-version.yaml"
+            pin_file="$SIBLINGS_DIR/$prefix-platform/base-version.yaml"
         fi
         [ -f "$pin_file" ] || _fail "$repo_name é uma instância e $pin_file não existe — sem ele não há pino a conferir (docs/ADAPTATION.md §7)"
         pinned="$(python3 - "$pin_file" <<'PY'

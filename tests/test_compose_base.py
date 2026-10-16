@@ -17,8 +17,22 @@ import pytest
 import yaml
 
 
-def _siblings_present(repo_root: Path) -> bool:
-    base_root = repo_root.parent
+def _base_root(repo_root: Path) -> Path:
+    """BASE_ROOT, else the directory beside base-platform's main checkout --
+    from a worktree, repo_root.parent is the worktrees directory (#15)."""
+    if os.environ.get("BASE_ROOT"):
+        return Path(os.environ["BASE_ROOT"]).resolve()
+    common = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    return Path(common).parent.parent
+
+
+def _siblings_present(base_root: Path) -> bool:
     return all(
         (base_root / name / "compose.yaml").exists()
         or (base_root / name / "docker-compose.yml").exists()
@@ -35,8 +49,9 @@ def repo_root() -> Path:
 def composed(repo_root: Path) -> dict:
     if shutil.which("docker") is None:
         pytest.skip("docker not on PATH")
-    if not _siblings_present(repo_root):
-        pytest.skip("sibling repositories not checked out next to base-platform")
+    base_root = _base_root(repo_root)
+    if not _siblings_present(base_root):
+        pytest.skip(f"sibling repositories not checked out in {base_root}")
     result = subprocess.run(
         ["docker", "compose", "-f", str(repo_root / "compose.base.yaml"), "config"],
         cwd=repo_root,
@@ -44,6 +59,7 @@ def composed(repo_root: Path) -> dict:
         text=True,
         env={
             "PATH": os.environ.get("PATH", ""),
+            "BASE_ROOT": str(base_root),
             "GRAFANA_ADMIN_PASSWORD": "x",
             "POSTGRES_PASSWORD": "x",
             "UI_PASSWORD": "x",

@@ -199,6 +199,39 @@ class TestWhichWorkingTree:
         result = _run(root, str(worktree))
         assert f"saw={worktree}" in result.stdout
 
+    def test_a_worktree_given_beats_the_current_directory(self, root: Path) -> None:
+        # base-platform#31: run from the main checkout with its worktree as
+        # the argument, the worktree is what gets checked.
+        main = _make_repo(root, "base-knowledge")
+        worktree = root / "base-knowledge-wt"
+        _git(main, "worktree", "add", "-q", str(worktree), "-b", "wt")
+        result = _run(root, str(worktree), cwd=main)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "| base-knowledge | wt |" in result.stdout
+
+    def test_run_from_a_worktree_of_base_platform_finds_the_siblings(self, root: Path) -> None:
+        # base-platform#15: with no BASE_ROOT, the siblings are those of the
+        # main checkout, not the worktrees directory the script sits in.
+        platform = _make_repo(root, "base-platform")
+        (platform / "scripts" / "harmony.sh").write_text(SCRIPT.read_text())
+        _git(platform, "add", "-A")
+        _git(platform, "commit", "-q", "-m", "harmony")
+        _make_repo(root, "base-knowledge")
+        worktree = platform / ".claude" / "worktrees" / "wt"
+        _git(platform, "worktree", "add", "-q", str(worktree), "-b", "wt")
+        env = {k: v for k, v in os.environ.items() if not k.startswith("BASE_")}
+        result = subprocess.run(
+            ["bash", str(worktree / "scripts" / "harmony.sh")],
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=env,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "| base-knowledge | main |" in result.stdout
+        assert "| base-platform | wt |" in result.stdout
+
     def test_only_checks_exactly_the_paths_given(self, root: Path) -> None:
         platform = _make_repo(root, "base-platform")
         _make_repo(root, "x-platform", gate="echo red-outsider; exit 1")
