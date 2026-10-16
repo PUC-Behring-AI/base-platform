@@ -12,8 +12,8 @@ This file is versioned. A repository declares which version it follows on the
 first line of its own `AGENTS.md`. That is what makes it possible to tell who is
 behind — the one thing loose copies never allow.
 
-**Provenance.** These sections were extracted from `idia-server/AGENTS.md`
-(now `base-inference`), where they had accumulated over five phases of work.
+**Provenance.** These sections were extracted from the precursor monolith's
+`AGENTS.md` (now `base-inference`), where they had accumulated over five phases of work.
 They were translated from Portuguese and generalised away from that
 repository's specific paths; each generalisation is marked. They were not
 rewritten. They are calibrated axioms, and rewriting one in passing is how one
