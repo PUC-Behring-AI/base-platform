@@ -19,6 +19,12 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **`BREAKING` — C2 states who is limited: the key, not the person** (`docs/CONTRACTS.md` §C2, #69). Once product calls go interface → agents → inference, agents calls with its own key, so budgets and rate limits apply per key, that is, per deployment. Per-person limits on product calls are not a base guarantee. An instance that needs them passes the person as the gateway's end user, with a budget per person, measured in #69. This is safe only while no person holds a key that reaches chat models.
+
+  **What an instance must do:** nothing, unless it relied on per-person budgets for product use. Keys issued to people through `colleague create` keep their tiers.
+
 ## [0.7.0] — 2026-10-19
 
 ### Added
