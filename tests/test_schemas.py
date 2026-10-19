@@ -456,7 +456,20 @@ def _c3(def_name: str, registry: Registry) -> Draft202012Validator:
     ("def_name", "valid_instance"),
     [
         ("identity", {"account_id": "acct-1", "roles": ["user"]}),
-        ("response", {"request_id": _RID, "classification": _CLASS, "body": {}}),
+        (
+            "response",
+            {"request_id": _RID, "classification": _CLASS, "outcome": "answered", "body": {}},
+        ),
+        (
+            "response",
+            {
+                "request_id": _RID,
+                "classification": _CLASS,
+                "outcome": "declined",
+                "declined_code": "insufficient_evidence",
+                "body": {},
+            },
+        ),
         ("job_accepted", {"request_id": _RID, "job_id": "job-1"}),
         (
             "job_status",
@@ -477,7 +490,12 @@ def _c3(def_name: str, registry: Registry) -> Draft202012Validator:
                 "job_id": "job-1",
                 "state": "succeeded",
                 "steps": [{"name": "draft", "state": "done"}],
-                "result": {"request_id": _RID, "classification": _CLASS, "body": {"drafted": 3}},
+                "result": {
+                    "request_id": _RID,
+                    "classification": _CLASS,
+                    "outcome": "answered",
+                    "body": {"drafted": 3},
+                },
             },
         ),
         (
@@ -506,12 +524,42 @@ def test_c3_definition_accepts_its_valid_instance(
 def test_c3_response_rejects_a_missing_classification(registry: Registry) -> None:
     """A screen must know what it is showing; C1 closes the same gap on reads."""
     with pytest.raises(ValidationError):
-        _c3("response", registry).validate({"request_id": _RID, "body": {}})
+        _c3("response", registry).validate({"request_id": _RID, "outcome": "answered", "body": {}})
 
 
 def test_c3_response_rejects_a_missing_request_id(registry: Registry) -> None:
     with pytest.raises(ValidationError):
-        _c3("response", registry).validate({"classification": _CLASS, "body": {}})
+        _c3("response", registry).validate(
+            {"classification": _CLASS, "outcome": "answered", "body": {}}
+        )
+
+
+def test_c3_response_rejects_a_missing_outcome(registry: Registry) -> None:
+    """A screen must tell an answer from a decline without reading the
+    instance-defined body."""
+    with pytest.raises(ValidationError):
+        _c3("response", registry).validate(
+            {"request_id": _RID, "classification": _CLASS, "body": {}}
+        )
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"outcome": "declined"},
+        {"outcome": "answered", "declined_code": "insufficient_evidence"},
+        {"outcome": "declined", "declined_code": "Not Enough!"},
+        {"outcome": "refused"},
+    ],
+    ids=["declined-without-code", "answered-with-code", "code-not-machine-readable", "unknown"],
+)
+def test_c3_response_rejects_an_inconsistent_outcome(
+    fields: dict[str, str], registry: Registry
+) -> None:
+    with pytest.raises(ValidationError):
+        _c3("response", registry).validate(
+            {"request_id": _RID, "classification": _CLASS, "body": {}, **fields}
+        )
 
 
 def test_c3_job_status_rejects_an_unknown_state(registry: Registry) -> None:
@@ -536,7 +584,12 @@ def test_c3_job_status_rejects_a_result_while_running(registry: Registry) -> Non
                 "job_id": "job-1",
                 "state": "running",
                 "steps": [],
-                "result": {"request_id": _RID, "classification": _CLASS, "body": {}},
+                "result": {
+                    "request_id": _RID,
+                    "classification": _CLASS,
+                    "outcome": "answered",
+                    "body": {},
+                },
             }
         )
 

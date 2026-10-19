@@ -16,14 +16,20 @@
     },
     "response": {
       "type": "object",
-      "description": "A synchronous call's answer. classification is required: a screen must know what it is showing, and an answer built from classified evidence is that evidence's class.",
+      "description": "A synchronous call's answer, and a job's result. classification is required: a screen must know what it is showing, and an answer built from classified evidence is that evidence's class. outcome tells an answer from a decline without reading the instance-defined body: a flow that cannot or should not answer declines, which is a result, not an error. declined_code is present only when declined.",
       "properties": {
         "request_id": { "type": "string", "format": "uuid" },
         "classification": { "$ref": "https://schemas.base.internal/classification.schema.json" },
+        "outcome": { "enum": ["answered", "declined"] },
+        "declined_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
         "body": { "type": "object", "description": "Instance-defined." }
       },
-      "required": ["request_id", "classification", "body"],
-      "additionalProperties": false
+      "required": ["request_id", "classification", "outcome", "body"],
+      "additionalProperties": false,
+      "allOf": [
+        { "if": { "properties": { "outcome": { "const": "declined" } } }, "then": { "required": ["declined_code"] } },
+        { "if": { "properties": { "outcome": { "const": "answered" } } }, "then": { "not": { "required": ["declined_code"] } } }
+      ]
     },
     "job_accepted": {
       "type": "object",
