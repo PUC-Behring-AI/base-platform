@@ -8,6 +8,10 @@
 # not own.
 services:
   prometheus:
+    # knowledge lives on base-internal alone (base-knowledge#23): the
+    # backend joins it to scrape knowledge:8001, and keeps default for the
+    # rest.
+    networks: [default, base-internal]
     volumes:
       - ${BASE_ROOT:-..}/base-knowledge/observability/scrape.d/knowledge.yml:/etc/prometheus/scrape.d/knowledge.yml:ro
       - ${BASE_ROOT:-..}/base-inference/observability/scrape.d/inference.yml:/etc/prometheus/scrape.d/inference.yml:ro
@@ -17,3 +21,12 @@ services:
   grafana:
     volumes:
       - ${BASE_ROOT:-..}/base-inference/observability/dashboards:/etc/grafana/provisioning/dashboards/inference:ro
+
+# base-internal: the network with no route out, where knowledge lives
+# (base-knowledge#23). Every layer that declares it declares it exactly like
+# this: Compose v2 refuses two different definitions of one network across
+# includes, and v5 merges them in silence (measured 2026-10-19;
+# tests/test_compose_base.py checks they stay identical).
+networks:
+  base-internal:
+    internal: true
