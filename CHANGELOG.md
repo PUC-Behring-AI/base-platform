@@ -52,6 +52,15 @@ minor carries breaking changes.
   - `agents` writes through it, never around it;
   - an instance declares its collections.
 
+- **`BREAKING` — C6 gains a read path** (`docs/CONTRACTS.md` §C6, `schemas/c6_query.schema.json`). An audit view reads provenance through `agents`:
+  - a query needs at least one filter (request, record or time window) and a bounded limit;
+  - each record keeps its own class, and the read is itself recorded;
+  - a human decision (accept, override, dismiss, approve) is a C6 record that `agents` emits for the interface.
+
+  Who may read which class is still undefined in the base; each instance states its rule. **What each layer must do:**
+  - `knowledge` serves the query;
+  - `agents` exposes it over C3 and emits decisions.
+
 ### Changed
 
 - **BREAKING** — C1: every passage's `provenance` carries a required,

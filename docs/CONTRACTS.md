@@ -18,7 +18,7 @@ requires approval from **both** affected teams.
 | **C3** | `interface` → `agents` | The only arrow leaving the interface. |
 | **C4** | all → `platform` | Metrics. **No payload, ever.** One direction, no response. |
 | **C5** | `platform` → `inference`, `interface` | Identity: issue a credential, create an account, grant model access. Nobody writes into another layer's storage. |
-| **C6** | all → `knowledge` | Provenance. One record per request, carrying a classification, stored under the same policy as the data it describes. |
+| **C6** | all → `knowledge` | Provenance. One record per request, carrying a classification, stored under the same policy as the data it describes. Read back through `agents` with at least one filter (`c6_query`). |
 | **C7** | `knowledge` → `inference` | Embeddings only. **The credential reaches the embedding models and the embeddings route, and nothing else, and it is always `local-only`.** |
 | **C8** | `agents` → `knowledge` | Domain records and uploaded sources. **The engine stamps the classification from the collection's declaration; the caller may only raise it.** Every write emits C6. |
 
@@ -204,6 +204,25 @@ Three properties this contract requires, and each has a reason:
   land in one place rather than five, and why the correlation identifier is a
   contract obligation rather than a convention.
 
+**Reading it back** (`schemas/c6_query.schema.json`). An audit view needs
+"show me everything that produced this output", and the interface may reach
+only `agents`. So the read goes interface → `agents` (C3) → `knowledge`:
+
+- **A query names at least one filter**: the request it is about, a record
+  (collection plus id), or a time window, with a bounded `limit`. A query with
+  no filter would make the provenance store the widest read path in the system.
+- **Every record comes back under its own classification.** A record about
+  confidential evidence is confidential to read.
+- **Who may read which class is not defined by the base yet.** Classification
+  says where data may go, not who may see it. Until a reader-access rule
+  exists, `agents` must not pass the interface a record of a class the caller
+  is not entitled to, and each instance states its rule.
+- **The read is itself recorded**, under the reader's own request id.
+- **A human decision is a C6 record.** Accepting, overriding or dismissing a
+  model proposal, or approving a document, is emitted by `agents` on the
+  interface's behalf, with the decision in `payload`. It carries payload, so it
+  is provenance, not a metric.
+
 ### C7 — embeddings
 
 `knowledge` turns every passage it indexes, and every query it searches with,
@@ -284,7 +303,7 @@ contract into documentation of what already happened.
 
 ## State
 
-**C1, C3 (its envelope), C5, C6 and C8 are executable.** Their payload shapes live in `schemas/` as
+**C1, C3 (its envelope), C5, C6 (write and read) and C8 are executable.** Their payload shapes live in `schemas/` as
 JSON Schema, with `tests/test_schemas.py` proving each one accepts what it
 should and rejects what it should — including the invariant that matters
 most, that a classification's `key_policy` can only ever be `local-only` or
