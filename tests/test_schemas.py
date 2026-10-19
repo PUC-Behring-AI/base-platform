@@ -39,7 +39,7 @@ def _validator(schema: dict[str, Any], registry: Registry) -> Draft202012Validat
 # ── Every schema file is well-formed ─────────────────────────────────────
 
 
-def test_at_least_the_six_expected_schemas_exist(schemas: dict[str, Any]) -> None:
+def test_at_least_the_seven_expected_schemas_exist(schemas: dict[str, Any]) -> None:
     expected = {
         "https://schemas.base.internal/envelope.schema.json",
         "https://schemas.base.internal/classification.schema.json",
@@ -47,6 +47,7 @@ def test_at_least_the_six_expected_schemas_exist(schemas: dict[str, Any]) -> Non
         "https://schemas.base.internal/c5_identity.schema.json",
         "https://schemas.base.internal/c6_provenance.schema.json",
         "https://schemas.base.internal/c3_envelope.schema.json",
+        "https://schemas.base.internal/c8_record.schema.json",
     }
     missing = expected - schemas.keys()
     assert not missing, f"schema(s) missing from schemas/: {missing}"
@@ -547,6 +548,115 @@ def test_c3_identity_rejects_an_empty_account(registry: Registry) -> None:
 def test_c3_error_rejects_a_code_that_is_not_machine_readable(registry: Registry) -> None:
     with pytest.raises(ValidationError):
         _c3("error", registry).validate({"request_id": _RID, "code": "Not Found!", "message": "x"})
+
+
+# ── c8_record.schema.json — domain records, agents -> knowledge ─────────
+
+
+def _c8(def_name: str, registry: Registry) -> Draft202012Validator:
+    schema = {"$ref": f"https://schemas.base.internal/c8_record.schema.json#/$defs/{def_name}"}
+    return Draft202012Validator(schema, registry=registry)
+
+
+@pytest.mark.parametrize(
+    ("def_name", "valid_instance"),
+    [
+        ("write_request", {"request_id": _RID, "collection": "assessments", "body": {}}),
+        (
+            "write_request",
+            {
+                "request_id": _RID,
+                "collection": "assessments",
+                "record_id": "rec-1",
+                "expected_revision": 3,
+                "body": {"title": "x"},
+            },
+        ),
+        (
+            "write_response",
+            {"request_id": _RID, "record_id": "rec-1", "revision": 1, "classification": _CLASS},
+        ),
+        (
+            "read_response",
+            {
+                "request_id": _RID,
+                "records": [
+                    {
+                        "collection": "assessments",
+                        "record_id": "rec-1",
+                        "revision": 2,
+                        "updated_at": "2026-10-19T10:00:00Z",
+                        "classification": _CLASS,
+                        "body": {},
+                    }
+                ],
+            },
+        ),
+        (
+            "delete_request",
+            {
+                "request_id": _RID,
+                "collection": "assessments",
+                "record_id": "rec-1",
+                "expected_revision": 2,
+            },
+        ),
+        (
+            "source_upload",
+            {
+                "request_id": _RID,
+                "collection": "sources",
+                "filename": "memo.pdf",
+                "media_type": "application/pdf",
+                "size_bytes": 1024,
+            },
+        ),
+        (
+            "source_upload_response",
+            {"request_id": _RID, "source_id": "src-1", "classification": _CLASS},
+        ),
+    ],
+)
+def test_c8_definition_accepts_its_valid_instance(
+    def_name: str, valid_instance: dict[str, Any], registry: Registry
+) -> None:
+    _c8(def_name, registry).validate(valid_instance)
+
+
+def test_c8_write_request_rejects_a_caller_supplied_classification(registry: Registry) -> None:
+    """The engine stamps; a caller that sends its own classification is refused outright."""
+    with pytest.raises(ValidationError):
+        _c8("write_request", registry).validate(
+            {"request_id": _RID, "collection": "assessments", "body": {}, "classification": _CLASS}
+        )
+
+
+def test_c8_write_request_rejects_a_replace_without_a_revision(registry: Registry) -> None:
+    """A replace without expected_revision would let two people overwrite each other silently."""
+    with pytest.raises(ValidationError):
+        _c8("write_request", registry).validate(
+            {"request_id": _RID, "collection": "assessments", "record_id": "rec-1", "body": {}}
+        )
+
+
+def test_c8_record_rejects_a_missing_classification(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c8("record", registry).validate(
+            {
+                "collection": "assessments",
+                "record_id": "rec-1",
+                "revision": 1,
+                "updated_at": "2026-10-19T10:00:00Z",
+                "body": {},
+            }
+        )
+
+
+def test_c8_rejects_a_collection_name_that_is_not_an_identifier(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c8("write_request", registry).validate(
+            {"request_id": _RID, "collection": "../assessments", "body": {}}
+        )
 
 
 # ── validator_for checks "format", or refuses to build ──────────────────

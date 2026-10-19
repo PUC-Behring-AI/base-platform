@@ -182,7 +182,7 @@ and section 5 covers it.
 
 | Layer | The instance declares |
 |---|---|
-| `knowledge` | `ontology/` (RDF/OWL), `connectors/` (sources), `taxonomy.yaml` |
+| `knowledge` | `ontology/` (RDF/OWL), `connectors/` (sources), `collections/` (domain records written over C8, each with a class), `taxonomy.yaml` |
 | `inference` | `models.yaml` (served models and where each runs); `tiers.yaml` is pending — nothing reads it yet, and base-inference#106 defines it |
 | `agents` | `flows/`, `prompts/`, `tools/` (MCP declarations) |
 | `interface` | `src/instance/` (code): routes, navigation entries, theme. Built into an image `FROM base-interface:<tag>` (ADR-013) |
