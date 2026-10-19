@@ -77,3 +77,52 @@ class TestOpenWebUIWaitsOnLiteLLM:
     def test_depends_on_litellm_healthy(self, composed: dict) -> None:
         depends = composed["services"]["open-webui"]["depends_on"]
         assert depends["litellm"]["condition"] == "service_healthy"
+
+
+# The files that make up compose.base.yaml, read as written: compose v5
+# merges two different definitions of one network without a word, so the
+# merged config cannot show a divergence (base-knowledge#23).
+_FRAGMENTS = (
+    "base-knowledge/compose.yaml",
+    "base-inference/docker-compose.yml",
+    "base-agents/compose.yaml",
+    "base-interface/compose.yaml",
+    "base-platform/compose.yaml",
+    "base-platform/compose.wiring.interface.yaml",
+    "base-platform/compose.wiring.observability.yaml",
+)
+
+
+@pytest.fixture
+def fragments(repo_root: Path) -> dict[str, dict]:
+    base_root = _base_root(repo_root)
+    if not _siblings_present(base_root):
+        pytest.skip(f"sibling repositories not checked out in {base_root}")
+    loaded = {}
+    for relative in _FRAGMENTS:
+        if relative.startswith("base-platform/"):
+            path = repo_root / Path(relative).name
+        else:
+            path = base_root / relative
+        loaded[relative] = yaml.safe_load(path.read_text()) or {}
+    return loaded
+
+
+class TestBaseInternalNetwork:
+    """The network knowledge lives on, with no route out (base-knowledge#23)."""
+
+    def test_every_declaration_is_the_same(self, fragments: dict[str, dict]) -> None:
+        declared = {
+            name: (fragment.get("networks") or {})["base-internal"]
+            for name, fragment in fragments.items()
+            if "base-internal" in (fragment.get("networks") or {})
+        }
+        assert declared, "no fragment declares base-internal"
+        assert all(d == {"internal": True} for d in declared.values()), declared
+
+    @pytest.mark.parametrize("service", ["agents", "litellm", "prometheus"])
+    def test_whoever_reaches_knowledge_joins_it(self, composed: dict, service: str) -> None:
+        assert "base-internal" in composed["services"][service]["networks"]
+
+    def test_it_has_no_route_out(self, composed: dict) -> None:
+        assert composed["networks"]["base-internal"]["internal"] is True
