@@ -28,7 +28,12 @@
               "source": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Where this passage came from — a document id, a URI, a table row reference. Instance-defined format."
+                "description": "Which source this passage came from — the collection it belongs to (in knowledge, the source a connector declares). Instance-defined format."
+              },
+              "locator": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Where in its source this passage is — a document and its pages, a record key — so the consumer can cite it. Instance-defined format."
               },
               "retrieved_at": {
                 "type": "string",

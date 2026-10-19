@@ -126,6 +126,7 @@ def _valid_c1_instance() -> dict[str, Any]:
                 "classification": {"name": "public", "key_policy": "external"},
                 "provenance": {
                     "source": "doc://example/1",
+                    "locator": "page 3",
                     "retrieved_at": "2026-09-11T10:00:00Z",
                 },
             }
@@ -159,6 +160,17 @@ def test_c1_evidence_rejects_a_passage_with_no_provenance(
 ) -> None:
     instance = _valid_c1_instance()
     del instance["passages"][0]["provenance"]
+    with pytest.raises(Exception):
+        _validator(
+            schemas["https://schemas.base.internal/c1_evidence.schema.json"], registry
+        ).validate(instance)
+
+
+def test_c1_evidence_rejects_an_empty_locator(
+    schemas: dict[str, Any], registry: Registry
+) -> None:
+    instance = _valid_c1_instance()
+    instance["passages"][0]["provenance"]["locator"] = ""
     with pytest.raises(Exception):
         _validator(
             schemas["https://schemas.base.internal/c1_evidence.schema.json"], registry
