@@ -1,6 +1,6 @@
 # The inter-layer contracts
 
-Seven contracts. All of them live **here**, not in the layer that implements them.
+Eight contracts. All of them live **here**, not in the layer that implements them.
 
 ## Why here
 
@@ -9,7 +9,7 @@ owner can change it alone. The consumer finds out at the rebase. Living here,
 changing a contract is a pull request in this repository, and `CODEOWNERS`
 requires approval from **both** affected teams.
 
-## The seven
+## The eight
 
 | | From → To | Invariant |
 |---|---|---|
@@ -20,6 +20,7 @@ requires approval from **both** affected teams.
 | **C5** | `platform` → `inference`, `interface` | Identity: issue a credential, create an account, grant model access. Nobody writes into another layer's storage. |
 | **C6** | all → `knowledge` | Provenance. One record per request, carrying a classification, stored under the same policy as the data it describes. |
 | **C7** | `knowledge` → `inference` | Embeddings only. **The credential reaches the embedding models and the embeddings route, and nothing else, and it is always `local-only`.** |
+| **C8** | `agents` → `knowledge` | Domain records and uploaded sources. **The engine stamps the classification from the collection's declaration; the caller may only raise it.** Every write emits C6. |
 
 ### The criterion that separates C4 from C6
 
@@ -233,6 +234,38 @@ sensitive one. What C7 fixes:
   client and hands a module an embedding function, never the key or the URL
   (ADR-011's stamp, applied to this arrow).
 
+### C8 — domain records
+
+The product builds things: an assessment, its answers, the evidence a person
+attaches, the sources they upload. These records are not evidence retrieved
+under C1, and they are not provenance under C6. Until C8 there was no contract
+for them. The interface stores no domain data, and `agents` is not a store, so
+the first instance would have written them wherever was closest: the browser,
+the interface's database, or a client from `agents` straight into the store.
+Each of those paths carries classified data with no classification and no
+provenance.
+
+What C8 fixes (`schemas/c8_record.schema.json`):
+
+- **Collections are declared by the instance in `knowledge`, next to its
+  connectors.** Each collection carries a class, the same way a source does. A
+  write to an undeclared collection is refused.
+- **The engine stamps; the caller never classifies.** This is ADR-011's rule,
+  applied to writes. A write may carry `requested_class` to make a record *more*
+  sensitive than its collection, never less, and the engine refuses a lower
+  one. Reads return the class with every record, as C1 does: **no read path
+  without a classification.**
+- **Optimistic concurrency.** A replace or a delete names the
+  `expected_revision`, and a stale one is refused. Two people editing the same
+  record must not silently overwrite each other.
+- **Uploading a source** sends the file with `source_upload` metadata. It is
+  ingested under its collection's class like any connector, and afterwards it
+  is evidence, found through C1.
+- **Every write and every upload emits C6** under the request id it carries.
+  The event log of a record is C6, not a field of the record.
+
+The bodies are instance-defined. Only the envelope is fixed here.
+
 ## How to change a contract
 
 1. Open a pull request **in this repository**, changing `docs/CONTRACTS.md` and,
@@ -245,7 +278,7 @@ contract into documentation of what already happened.
 
 ## State
 
-**C1, C3 (its envelope), C5 and C6 are executable.** Their payload shapes live in `schemas/` as
+**C1, C3 (its envelope), C5, C6 and C8 are executable.** Their payload shapes live in `schemas/` as
 JSON Schema, with `tests/test_schemas.py` proving each one accepts what it
 should and rejects what it should — including the invariant that matters
 most, that a classification's `key_policy` can only ever be `local-only` or

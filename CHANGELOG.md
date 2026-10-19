@@ -32,6 +32,17 @@ minor carries breaking changes.
   - `interface` calls only through it (base-interface#19);
   - an instance writes its payload schemas in `<prefix>-platform/schemas/`.
 
+- **`BREAKING` — C8, domain records, `agents` → `knowledge`** (`docs/CONTRACTS.md` §C8, `schemas/c8_record.schema.json`). It covers writes and reads of the records a person builds, and uploads of sources for ingestion:
+  - collections declared by the instance in `knowledge`, each with a class;
+  - the engine stamps the classification, and the caller may only raise it;
+  - optimistic concurrency by revision;
+  - every write emits C6.
+
+  **What each layer must do:**
+  - `knowledge` implements C8 and lets an instance declare collections;
+  - `agents` writes through it, never around it;
+  - an instance declares its collections.
+
 ### Changed
 
 - **ADR-013: the interface carries instance code.**
