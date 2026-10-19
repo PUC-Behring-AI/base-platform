@@ -13,3 +13,6 @@ htmlcov/
 venv/
 .env
 .DS_Store
+
+# Worktrees belong to a machine, not to the repository.
+.claude/worktrees/
