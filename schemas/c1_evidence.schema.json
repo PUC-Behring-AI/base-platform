@@ -33,14 +33,14 @@
               "locator": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Where in its source this passage is — a document and its pages, a record key — so the consumer can cite it. Instance-defined format."
+                "description": "Where in its source this passage is — a document and its pages, a record key — so the consumer can cite it. Instance-defined format. Required: an optional locator is an absent one."
               },
               "retrieved_at": {
                 "type": "string",
                 "format": "date-time"
               }
             },
-            "required": ["source", "retrieved_at"],
+            "required": ["source", "locator", "retrieved_at"],
             "additionalProperties": false
           }
         },

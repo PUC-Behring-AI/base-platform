@@ -43,6 +43,12 @@ same response, always — not as an optional field and not in a separate call.
 An optional field here is equivalent to an absent one: a consumer that forgets to
 read it produces an unclassified path, and nothing fails.
 
+"Where it came from" is two things: the **source** (the collection, such as a
+set of documents) and the **locator** (where inside it, such as a document and
+its pages). Both are required. A passage that names its collection but not its
+place in it cannot be cited, and a consumer asked "where does it say that?"
+has nothing to answer with.
+
 ### C2 — inference
 
 OpenAI-compatible protocol, so that any client built on the OpenAI SDK works
