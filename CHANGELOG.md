@@ -21,6 +21,13 @@ minor carries breaking changes.
 
 ### Changed
 
+- **BREAKING** — C1: every passage's `provenance` carries a required,
+  non-empty `locator`, where in its source the passage is (a document and its
+  pages, a record key), in an instance-defined format. Before, a passage named
+  its source alone and could not be cited (#53). base-knowledge writes it from
+  each module's `Hit.locator`, now required, and locates a static passage as
+  `<source>#<index>` (base-knowledge#34). An instance acts before pinning:
+  every knowledge module returns a locator with each hit.
 - **ADR-013: the interface carries instance code.**
   - The engine becomes a React shell plus a backend-for-frontend.
   - An instance's `src/instance/` (routes, navigation, theme) is built into an image `FROM base-interface:<tag>`.

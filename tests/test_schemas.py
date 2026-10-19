@@ -166,11 +166,18 @@ def test_c1_evidence_rejects_a_passage_with_no_provenance(
         ).validate(instance)
 
 
-def test_c1_evidence_rejects_an_empty_locator(
-    schemas: dict[str, Any], registry: Registry
+@pytest.mark.parametrize("locator", [None, ""], ids=["absent", "empty"])
+def test_c1_evidence_rejects_a_passage_that_cannot_say_where_in_its_source(
+    schemas: dict[str, Any], registry: Registry, locator: str | None
 ) -> None:
+    """A passage the consumer cannot cite. Optional would be the same as
+    absent (CONTRACTS.md §C1), so the locator is required and not empty."""
     instance = _valid_c1_instance()
-    instance["passages"][0]["provenance"]["locator"] = ""
+    provenance = instance["passages"][0]["provenance"]
+    if locator is None:
+        del provenance["locator"]
+    else:
+        provenance["locator"] = locator
     with pytest.raises(Exception):
         _validator(
             schemas["https://schemas.base.internal/c1_evidence.schema.json"], registry
