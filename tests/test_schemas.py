@@ -39,7 +39,7 @@ def _validator(schema: dict[str, Any], registry: Registry) -> Draft202012Validat
 # ── Every schema file is well-formed ─────────────────────────────────────
 
 
-def test_at_least_the_seven_expected_schemas_exist(schemas: dict[str, Any]) -> None:
+def test_at_least_the_eight_expected_schemas_exist(schemas: dict[str, Any]) -> None:
     expected = {
         "https://schemas.base.internal/envelope.schema.json",
         "https://schemas.base.internal/classification.schema.json",
@@ -48,6 +48,7 @@ def test_at_least_the_seven_expected_schemas_exist(schemas: dict[str, Any]) -> N
         "https://schemas.base.internal/c6_provenance.schema.json",
         "https://schemas.base.internal/c3_envelope.schema.json",
         "https://schemas.base.internal/c8_record.schema.json",
+        "https://schemas.base.internal/c6_query.schema.json",
     }
     missing = expected - schemas.keys()
     assert not missing, f"schema(s) missing from schemas/: {missing}"
@@ -657,6 +658,54 @@ def test_c8_rejects_a_collection_name_that_is_not_an_identifier(registry: Regist
         _c8("write_request", registry).validate(
             {"request_id": _RID, "collection": "../assessments", "body": {}}
         )
+
+
+# ── c6_query.schema.json — reading provenance back ────────────────────
+
+
+def _c6q(def_name: str, registry: Registry) -> Draft202012Validator:
+    schema = {"$ref": f"https://schemas.base.internal/c6_query.schema.json#/$defs/{def_name}"}
+    return Draft202012Validator(schema, registry=registry)
+
+
+def test_c6_query_accepts_a_query_about_one_record(registry: Registry) -> None:
+    _c6q("query", registry).validate(
+        {
+            "request_id": _RID,
+            "filter": {"collection": "assessments", "record_id": "rec-1"},
+            "limit": 50,
+        }
+    )
+
+
+def test_c6_query_rejects_a_query_with_no_filter(registry: Registry) -> None:
+    """An unfiltered read would make the provenance store the widest read path."""
+    with pytest.raises(ValidationError):
+        _c6q("query", registry).validate({"request_id": _RID, "filter": {}, "limit": 50})
+
+
+def test_c6_query_rejects_an_unbounded_limit(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c6q("query", registry).validate(
+            {"request_id": _RID, "filter": {"about_request_id": _RID}, "limit": 100000}
+        )
+
+
+def test_c6_query_rejects_a_record_id_without_its_collection(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c6q("query", registry).validate(
+            {"request_id": _RID, "filter": {"record_id": "rec-1"}, "limit": 10}
+        )
+
+
+def test_c6_query_response_accepts_records_and_rejects_an_unclassified_one(
+    registry: Registry,
+) -> None:
+    good = _valid_c6_instance()
+    _c6q("response", registry).validate({"request_id": _RID, "records": [good]})
+    bad = {k: v for k, v in good.items() if k != "classification"}
+    with pytest.raises(ValidationError):
+        _c6q("response", registry).validate({"request_id": _RID, "records": [bad]})
 
 
 # ── validator_for checks "format", or refuses to build ──────────────────
