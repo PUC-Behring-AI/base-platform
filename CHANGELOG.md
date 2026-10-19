@@ -19,6 +19,8 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-19
+
 ### Added
 
 - **The gate checks Node / TypeScript** when a repository has a `package.json` (ADR-013 gave the interface a TypeScript codebase). The rules:
