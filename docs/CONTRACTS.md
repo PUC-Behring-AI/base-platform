@@ -63,6 +63,32 @@ destroys the property the contract exists to provide.
 When a screen needs something this contract does not carry, the fix is a change
 to C3 — a pull request here — never a second arrow.
 
+**The envelope** (`schemas/c3_envelope.schema.json`). The body of each call is
+instance-defined, and each instance keeps its payload schemas in
+`<prefix>-platform/schemas/`. What every call shares is fixed here:
+
+- **`X-Request-Id`.** The interface's backend-for-frontend (ADR-013) generates
+  it, one per call. Every layer propagates it unchanged, and it keys C6.
+- **Identity.** `X-Account-Id` and `X-Account-Roles` (the `identity` definition)
+  are asserted by the backend-for-frontend. `agents` trusts them because the
+  backend-for-frontend is the only process that can reach it. They are never
+  taken from the browser.
+- **Every response carries a `classification`.** A screen must know what it is
+  showing. An answer built from classified evidence carries that evidence's
+  class, and nothing in the interface may lower it.
+- **A typed error.** It carries a machine-readable `code` and a `message` for a
+  person. The message never contains classified content, because errors reach
+  logs.
+- **Two call modes.**
+  - **Synchronous:** the `response` definition.
+  - **Job:** starting returns `job_accepted`. Polling returns `job_status`,
+    which carries ordered steps, so a screen can show each step as it really
+    completes, and either a `result` (a `response`) or an `error`, never both.
+    The job keeps the request id of the call that started it, and every step
+    emits C6 under it.
+
+  Streaming is not part of C3 until a screen needs it.
+
 ### C4 — metrics
 
 Counters, latencies, histograms. They flow to the backend hosted in `platform`,
@@ -219,7 +245,7 @@ contract into documentation of what already happened.
 
 ## State
 
-**C1, C5 and C6 are executable.** Their payload shapes live in `schemas/` as
+**C1, C3 (its envelope), C5 and C6 are executable.** Their payload shapes live in `schemas/` as
 JSON Schema, with `tests/test_schemas.py` proving each one accepts what it
 should and rejects what it should — including the invariant that matters
 most, that a classification's `key_policy` can only ever be `local-only` or
@@ -227,13 +253,14 @@ most, that a classification's `key_policy` can only ever be `local-only` or
 
 C2 and C7 have no schema here because their shapes are OpenAI-compatible —
 defined externally, not by this repository. C7's own addition is in C5: the
-`purpose` an embedding credential is issued with. C3 has none because its shape is
-instance-specific by design. C4 has none because it is a metrics exposition
-format, not JSON, and its invariant (no payload) is enforced by each layer's
-own tests rather than by a base-level schema.
+`purpose` an embedding credential is issued with. C3's schema covers the
+envelope only; the body of each call is instance-specific by design. C4 has
+none because it is a metrics exposition format, not JSON, and its invariant
+(no payload) is enforced by each layer's own tests rather than by a base-level
+schema.
 
 This file remains the normative *description* of what each contract
-guarantees. `schemas/` is normative for the three payload *shapes* it covers;
+guarantees. `schemas/` is normative for the payload *shapes* it covers;
 where the two would ever disagree, fix the disagreement, because a schema
 whose text and validator tell different stories loses whichever one nobody
 reads.

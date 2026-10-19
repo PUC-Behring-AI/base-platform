@@ -39,13 +39,14 @@ def _validator(schema: dict[str, Any], registry: Registry) -> Draft202012Validat
 # ── Every schema file is well-formed ─────────────────────────────────────
 
 
-def test_at_least_the_five_expected_schemas_exist(schemas: dict[str, Any]) -> None:
+def test_at_least_the_six_expected_schemas_exist(schemas: dict[str, Any]) -> None:
     expected = {
         "https://schemas.base.internal/envelope.schema.json",
         "https://schemas.base.internal/classification.schema.json",
         "https://schemas.base.internal/c1_evidence.schema.json",
         "https://schemas.base.internal/c5_identity.schema.json",
         "https://schemas.base.internal/c6_provenance.schema.json",
+        "https://schemas.base.internal/c3_envelope.schema.json",
     }
     missing = expected - schemas.keys()
     assert not missing, f"schema(s) missing from schemas/: {missing}"
@@ -429,6 +430,116 @@ def test_c5_get_account_rejects_missing_has_credential(registry: Registry) -> No
                 "model_ids": [],
             }
         )
+
+
+# ── c3_envelope.schema.json — what every product call shares ─────────────
+
+_RID = "3fae9c9e-0e34-4e0a-9f9d-6c9f6a0a2b11"
+_CLASS = {"name": "client-confidential", "key_policy": "local-only"}
+
+
+def _c3(def_name: str, registry: Registry) -> Draft202012Validator:
+    schema = {"$ref": f"https://schemas.base.internal/c3_envelope.schema.json#/$defs/{def_name}"}
+    return Draft202012Validator(schema, registry=registry)
+
+
+@pytest.mark.parametrize(
+    ("def_name", "valid_instance"),
+    [
+        ("identity", {"account_id": "acct-1", "roles": ["user"]}),
+        ("response", {"request_id": _RID, "classification": _CLASS, "body": {}}),
+        ("job_accepted", {"request_id": _RID, "job_id": "job-1"}),
+        (
+            "job_status",
+            {
+                "request_id": _RID,
+                "job_id": "job-1",
+                "state": "running",
+                "steps": [
+                    {"name": "read sources", "state": "done"},
+                    {"name": "draft", "state": "running"},
+                ],
+            },
+        ),
+        (
+            "job_status",
+            {
+                "request_id": _RID,
+                "job_id": "job-1",
+                "state": "succeeded",
+                "steps": [{"name": "draft", "state": "done"}],
+                "result": {"request_id": _RID, "classification": _CLASS, "body": {"drafted": 3}},
+            },
+        ),
+        (
+            "job_status",
+            {
+                "request_id": _RID,
+                "job_id": "job-1",
+                "state": "failed",
+                "steps": [{"name": "draft", "state": "failed"}],
+                "error": {
+                    "request_id": _RID,
+                    "code": "model_unavailable",
+                    "message": "no local model",
+                },
+            },
+        ),
+        ("error", {"request_id": _RID, "code": "not_found", "message": "no such record"}),
+    ],
+)
+def test_c3_definition_accepts_its_valid_instance(
+    def_name: str, valid_instance: dict[str, Any], registry: Registry
+) -> None:
+    _c3(def_name, registry).validate(valid_instance)
+
+
+def test_c3_response_rejects_a_missing_classification(registry: Registry) -> None:
+    """A screen must know what it is showing; C1 closes the same gap on reads."""
+    with pytest.raises(ValidationError):
+        _c3("response", registry).validate({"request_id": _RID, "body": {}})
+
+
+def test_c3_response_rejects_a_missing_request_id(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c3("response", registry).validate({"classification": _CLASS, "body": {}})
+
+
+def test_c3_job_status_rejects_an_unknown_state(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c3("job_status", registry).validate(
+            {"request_id": _RID, "job_id": "job-1", "state": "streaming", "steps": []}
+        )
+
+
+def test_c3_job_status_rejects_success_without_a_result(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c3("job_status", registry).validate(
+            {"request_id": _RID, "job_id": "job-1", "state": "succeeded", "steps": []}
+        )
+
+
+def test_c3_job_status_rejects_a_result_while_running(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c3("job_status", registry).validate(
+            {
+                "request_id": _RID,
+                "job_id": "job-1",
+                "state": "running",
+                "steps": [],
+                "result": {"request_id": _RID, "classification": _CLASS, "body": {}},
+            }
+        )
+
+
+def test_c3_identity_rejects_an_empty_account(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c3("identity", registry).validate({"account_id": "", "roles": []})
+
+
+def test_c3_error_rejects_a_code_that_is_not_machine_readable(registry: Registry) -> None:
+    with pytest.raises(ValidationError):
+        _c3("error", registry).validate({"request_id": _RID, "code": "Not Found!", "message": "x"})
 
 
 # ── validator_for checks "format", or refuses to build ──────────────────
