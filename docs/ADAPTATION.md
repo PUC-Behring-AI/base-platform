@@ -185,7 +185,7 @@ and section 5 covers it.
 | `knowledge` | `ontology/` (RDF/OWL), `connectors/` (sources), `taxonomy.yaml` |
 | `inference` | `models.yaml` (served models and where each runs); `tiers.yaml` is pending — nothing reads it yet, and base-inference#106 defines it |
 | `agents` | `flows/`, `prompts/`, `tools/` (MCP declarations) |
-| `interface` | `forms/`, `views/` |
+| `interface` | `src/instance/` (code): routes, navigation entries, theme. Built into an image `FROM base-interface:<tag>` (ADR-013) |
 | `platform` | `schemas/` (C1–C6 payloads), `base-version.yaml` |
 
 **`taxonomy.yaml` is the most important file on that list.** It is where the
@@ -242,10 +242,15 @@ Python package, discovered through the entry-point group
 `base_<layer>.modules`.
 
 - Only `knowledge` accepts modules today, and `agents` will, through the same
-  group. `inference` and `interface` take configuration only: `inference`
-  because code inside the gateway could bypass the very policy it enforces;
-  `interface` because its forms and views are declarations, and stay so until
-  two instances need code there (§5).
+  group. `inference` takes configuration only, because code inside the gateway
+  could bypass the very policy it enforces.
+- `interface` takes code by a different socket, because a browser bundle is
+  not an installed package (ADR-013):
+  - the instance's `src/instance/` is compiled into the engine's frontend
+    shell at image build;
+  - an instance export that is missing or invalid fails the build;
+  - the only process with a route out is the engine's backend-for-frontend,
+    on a network that reaches only `agents`.
 - A module loads only when the instance manifest lists it under `modules:`.
   Listed but not installed — refuse to start. Installed but not listed —
   ignored, and logged.
