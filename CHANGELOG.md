@@ -92,6 +92,14 @@ minor carries breaking changes.
   - `knowledge` serves the query;
   - `agents` exposes it over C3 and emits decisions.
 
+- **`BREAKING` — C5's interface half shrinks to accounts and roles** (`docs/CONTRACTS.md` §C5, `schemas/c5_identity.schema.json`).
+  - Removed: `grant_access`, `revoke_access`, `link_credential`, `ensure_model_catalog_entry` and `configure_upstream`, plus `has_credential` and `model_ids` from `get_account_response`.
+  - The interface calls no model since ADR-013, and model access is the scope of the credential `inference` issues.
+
+  **What each layer must do:**
+  - `interface` drops those operations with its chat UI (base-interface#32, #33);
+  - `platform`'s provisioning (`colleague create` in base-inference) stops calling them.
+
 ### Changed
 
 - **BREAKING** — C1: every passage's `provenance` carries a required,

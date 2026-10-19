@@ -135,7 +135,7 @@ contract could be violated because none existed.
 | Direction | The layer must expose |
 |---|---|
 | `platform` → `inference` | Issue, inspect and revoke a credential, with its budget and rate limits |
-| `platform` → `interface` | Create, inspect and remove an account; grant or revoke access to a model; link an issued credential to an account; register a model in the visibility catalog; configure the upstream gateway once at deploy time |
+| `platform` → `interface` | Create, inspect and remove an account, with its role. Nothing else: since ADR-013 the interface calls no model, so it holds no model credential and no model catalog |
 
 **No layer writes into another layer's storage.** Not through a database file,
 not through a container name, not "just for provisioning". A layer that cannot
@@ -194,6 +194,21 @@ and what only ever shipped (create and remove).
   check does not need the secret to answer "is one linked", and carrying it
   anyway would make this operation a second way to read what
   `link_credential` already wrote once.
+
+**BREAKING, 0.7.0.** The interface half shrinks to accounts and roles. Five
+operations existed only because the interface's earlier chat UI called the
+model gateway directly: grant and revoke access to a model, link a
+credential, register a model in the catalog, and configure the upstream
+gateway. Under ADR-013 the interface reaches only `agents`, so:
+
+- **A model credential no longer enters the interface.** That is the point of
+  the change, not a side effect. `link_credential` wrote a secret into a layer
+  that has no use for it.
+- **Inspecting an account** returns the account and its role, without
+  `has_credential` or `model_ids`.
+- **Which models a person may use** is the scope of the credential that
+  `inference` issues (`platform → inference`). The interface no longer keeps a
+  second copy of it.
 
 ### C6 — provenance
 
