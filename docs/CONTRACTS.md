@@ -91,6 +91,12 @@ instance-defined, and each instance keeps its payload schemas in
 - **Every response carries a `classification`.** A screen must know what it is
   showing. An answer built from classified evidence carries that evidence's
   class, and nothing in the interface may lower it.
+- **Every response carries an `outcome`: `answered` or `declined`.** A flow
+  that cannot or should not answer, because the evidence does not support an
+  answer for instance, declines. That is a result, not a failure: it must not
+  look like an error on a screen or in an error rate. A declined response
+  carries a machine-readable `declined_code` and keeps its `classification`.
+  The body stays instance-defined, so the marker sits beside it, not inside it.
 - **A typed error.** It carries a machine-readable `code` and a `message` for a
   person. The message never contains classified content, because errors reach
   logs.

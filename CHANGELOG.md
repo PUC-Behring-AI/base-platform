@@ -25,6 +25,13 @@ minor carries breaking changes.
 
   **What an instance must do:** nothing, unless it relied on per-person budgets for product use. Keys issued to people through `colleague create` keep their tiers.
 
+- **`BREAKING` — C3's `response` gains a required `outcome`** (`docs/CONTRACTS.md` §C3, `schemas/c3_envelope.schema.json`). It is `answered` or `declined`; a declined response also carries a machine-readable `declined_code`. A flow that declines returns a result, not an error, and a screen tells the two apart without reading the instance-defined body. A job's `result` is a `response`, so it carries the field too.
+
+  **What each layer must do:**
+  - `agents` sets `outcome` on every response and job result (base-agents#9, its flows socket);
+  - `interface` reads it, and shows a decline as a decline, not as a failure;
+  - an instance: nothing in its body schemas, which stay inside `body`.
+
 ## [0.7.0] — 2026-10-19
 
 ### Added
