@@ -44,6 +44,13 @@
 #                                                       SKIPPED if there are
 #                                                       none, shellcheck only
 #                                                       if installed
+#   - a Node/TypeScript project, if package.json     → FAILS without a lockfile,
+#     exists (npm ci, tsc, eslint, vitest)              without .nvmrc, on a Node
+#                                                       major other than .nvmrc's,
+#                                                       if node is missing, or if
+#                                                       any present tool fails;
+#                                                       each tool SKIPPED when
+#                                                       its config is absent
 #   - a base repository names no instance            → FAILS on a hit of the
 #     (scripts/leak-check.sh)                           denylist, WARNS that it
 #                                                       is not active when no
@@ -392,6 +399,57 @@ else
         _ok "shellcheck limpo"
     else
         _skip "shellcheck não instalado (brew install shellcheck)"
+    fi
+fi
+
+# ── 6b. Node / TypeScript, se houver package.json ───────────────────────────
+# A interface passou a carregar código TypeScript (ADR-013). Sem este passo,
+# um frontend passaria verde no harmony sem ter sido checado. Só npm é aceito:
+# um segundo gerenciador de pacotes seria um segundo lockfile para divergir.
+# O que o build produz (dist/) não é versionado, então o leak-check, que lê o
+# que o git rastreia, não o vê — e não precisa: o que importa é o fonte.
+
+_step "Node / TypeScript"
+if [ ! -f "$TARGET_DIR/package.json" ]; then
+    _skip "sem package.json — nada de Node para rodar"
+else
+    command -v node &>/dev/null && command -v npm &>/dev/null \
+        || _fail "package.json existe mas node/npm não estão instalados — instale, não pule"
+    [ -f "$TARGET_DIR/package-lock.json" ] \
+        || _fail "package.json sem package-lock.json — só npm é aceito, e o lockfile é obrigatório"
+    [ -f "$TARGET_DIR/.nvmrc" ] \
+        || _fail "package.json sem .nvmrc — declare a versão do Node que este repositório usa"
+    want_node="$(tr -d '[:space:]v' < "$TARGET_DIR/.nvmrc")"
+    want_major="${want_node%%.*}"
+    have_major="$(node --version | sed 's/^v//; s/\..*//')"
+    [ "$have_major" = "$want_major" ] \
+        || _fail "Node $have_major instalado, mas .nvmrc pede $want_node"
+    _ok "Node $have_major, como .nvmrc pede"
+
+    (cd "$TARGET_DIR" && npm ci --no-audit --no-fund --loglevel=error) \
+        || _fail "npm ci falhou"
+    _ok "dependências instaladas do lockfile"
+
+    if [ -f "$TARGET_DIR/tsconfig.json" ]; then
+        (cd "$TARGET_DIR" && npx --no-install tsc --noEmit) || _fail "tsc apontou erros (ou typescript não está nas dependências)"
+        _ok "tsc limpo"
+    else
+        _skip "sem tsconfig.json — nenhuma checagem de tipos"
+    fi
+
+    eslint_config="$(find "$TARGET_DIR" -maxdepth 1 \( -name 'eslint.config.*' -o -name '.eslintrc*' \) -print -quit)"
+    if [ -n "$eslint_config" ]; then
+        (cd "$TARGET_DIR" && npx --no-install eslint .) || _fail "eslint apontou erros (ou eslint não está nas dependências)"
+        _ok "eslint limpo"
+    else
+        _skip "sem configuração do eslint"
+    fi
+
+    if grep -q '"vitest"' "$TARGET_DIR/package.json"; then
+        (cd "$TARGET_DIR" && npx --no-install vitest run) || _fail "a suíte vitest não passou"
+        _ok "vitest verde"
+    else
+        _skip "vitest não está nas dependências — nenhuma suíte de frontend"
     fi
 fi
 
