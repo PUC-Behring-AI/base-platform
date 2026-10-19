@@ -61,6 +61,14 @@ classification present in the context. The inference layer does not validate tha
 choice — it serves what the key permits, and that is what makes the rule enforced
 rather than agreed.
 
+**Spend is counted per key, not per person.** On product calls, `agents` calls
+`inference` with its own key, chosen by classification. The base enforces
+budgets and rate limits per key, that is, per deployment: no product call is
+limited per person. An instance that needs per-person limits passes the person
+as the end user and gives each one a budget on the gateway; that mechanism was
+measured on the pinned gateway in #69. It is safe only while no person holds a
+key that reaches chat models, because any key may name any end user.
+
 ### C3 — the product API
 
 The interface talks to `agents` and to nothing else. There is no "just for this
