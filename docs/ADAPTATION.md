@@ -94,6 +94,9 @@ secret the harmony workflow already uses, `HARMONY_KEY_<PREFIX>_PLATFORM`:
             with:
               python-version: "3.11"
           - run: pip install pytest pyyaml jsonschema ruff
+          - uses: actions/setup-node@v4   # only in a repository with package.json
+            with:
+              node-version-file: <this-repo-name>/.nvmrc
           - run: ./scripts/gate.sh
             working-directory: <this-repo-name>
 
