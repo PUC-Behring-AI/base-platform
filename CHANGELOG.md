@@ -19,6 +19,15 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **ADR-013: the interface carries instance code.**
+  - The engine becomes a React shell plus a backend-for-frontend.
+  - An instance's `src/instance/` (routes, navigation, theme) is built into an image `FROM base-interface:<tag>`.
+  - The backend-for-frontend is the layer's one arrow, on a network that reaches only `agents`.
+  - ADR-011's "`interface` takes configuration only" narrows to `inference`. ADAPTATION §4 and ARCHITECTURE follow.
+  - **What an instance must do:** nothing yet. `forms/` and `views/` were never read by any engine. The engine side is tracked in base-interface#15.
+
 ### Fixed
 
 - The gate and harmony find the sibling repositories beside the main

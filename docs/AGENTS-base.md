@@ -263,7 +263,7 @@ on disk, and they read each other through:
   `base-platform/schemas/`), imported in place, never copied;
 - the shared gate (`base-platform/scripts/gate.sh`) and `compose.base.yaml`;
 - the shapes of an instance directory (`taxonomy.yaml`, `connectors/`,
-  `models.yaml`, `forms/` …) and the entry-point groups
+  `models.yaml`, `src/instance/` …) and the entry-point groups
   (`base_<layer>.modules`), defined by an engine and written by an instance;
 - environment variable names, service names and ports, which one repository
   sets and another reads.

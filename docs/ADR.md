@@ -344,7 +344,7 @@ reasons.**
 clause: an installed Python package, discovered through the entry-point group
 `base_<layer>.modules`, loaded only when the instance manifest lists it.
 `knowledge` first; `agents` through the same group when its flows need it.
-`inference` and `interface` take configuration only.
+`inference` and `interface` take configuration only. (ADR-013 narrows this: `interface` takes instance code through a build-time directory. `inference` stays configuration-only.)
 
 What the socket guarantees is in `ADAPTATION.md` §4: the engine, not the
 module, sets every classification, and a container running instance code
@@ -399,3 +399,65 @@ are narrower than C2: one route, one key family, one model kind. An index's
 vectors belong to one model, so changing the embedding model is a re-embedding
 job, not a configuration flip.
 
+
+---
+
+## ADR-013: The interface carries instance code: a frontend shell, and a backend-for-frontend as its one arrow
+
+**Context.** ADR-011 said `interface` takes configuration only. The engine
+would render an instance's `forms/*.schema.json`, and `views/` would order
+them. The first instance's screens are not forms:
+
+- a long model pass that the person follows step by step;
+- a list ranked by a model, which the person can reorder;
+- a clickable chart and a knowledge chart per category;
+- a per-question screen where the person answers, accepts or dismisses a model
+  proposal, and attaches evidence;
+- a report built from live state.
+
+None of these is a JSON Schema form. All of them are the instance's
+confidential methodology made visible, so under ADR-004 they cannot live in
+the engine either.
+
+**Decision.** The interface engine is two parts, and the instance adds code to
+the first.
+
+- **A frontend shell (React)**: session handling, layout and navigation, a C3
+  client that stamps the request identifier, and theme tokens. The instance
+  supplies `src/instance/`, which holds its routes, navigation entries and
+  theme. A multi-stage build `FROM base-interface:<pinned tag>` joins the shell
+  and the instance code. The gate's existing pin check covers that `FROM` line
+  (§7 of ADAPTATION.md), and no package registry is needed.
+- **A backend-for-frontend (BFF)**: the engine's existing Python service, grown.
+  It serves the built assets, owns login and the session, generates the request
+  identifier (C6), and forwards product calls to `agents` over C3. It is the
+  only process in the layer with a route out. It sits on a network whose only
+  other member is `agents`. The browser reaches its own origin and nothing
+  else.
+
+Components that look generic start in the instance and move to the engine only
+when a second instance asks for them (ADR-004). Examples are a proposal card
+with accept and dismiss, a citation list, and an audit view.
+
+ADR-011's sentence narrows to "`inference` takes configuration only". The
+entry-point socket stays Python-only. The interface socket is a build-time
+directory, not an entry point, because a browser bundle is not an installed
+package.
+
+**Alternative discarded.** Keep the interface configuration-only. Either the
+screens are squeezed into schema-driven forms, or they are built as a separate
+frontend outside the layer.
+
+**What that would have cost.** Forms would lose most of the screens. Charts,
+ranking and the evidence workflow have no schema form. A frontend outside the
+layer is worse. It would be a second application that the one-arrow rule
+(ADR-003) does not see, and the first thing it would need is a direct read from
+`knowledge`, "just for this screen".
+
+**Consequences.** ADR-003 is enforced by the network instead of by review: the
+BFF is the one arrow, and its network reaches only `agents`. The engine gains a
+TypeScript codebase, and the gate must check it. An interface instance gets an
+image of its own, built the way ADAPTATION §4 builds a layer with modules. The
+engine's earlier chat UI, which called the model gateway directly, has no place
+in this shape and leaves the layer. C5's interface half then holds no model
+credential.
