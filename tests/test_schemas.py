@@ -279,25 +279,7 @@ def test_c6_provenance_rejects_missing_payload(
                 "principal_id": "user-42",
                 "display_name": "Jane Researcher",
                 "role": "user",
-                "has_credential": True,
-                "model_ids": ["local-mistral-7b"],
             },
-        ),
-        (
-            "grant_access_request",
-            {"principal_id": "user-42", "model_id": "local-mistral-7b"},
-        ),
-        (
-            "link_credential_request",
-            {"principal_id": "user-42", "virtual_key": "sk-abc123"},
-        ),
-        (
-            "ensure_model_catalog_entry_request",
-            {"model_id": "local-mistral-7b", "display_name": "Mistral 7B (local)"},
-        ),
-        (
-            "configure_upstream_request",
-            {"api_base_url": "http://litellm:4000/v1", "discovery_key": "sk-discovery"},
         ),
     ],
 )
@@ -377,27 +359,6 @@ def test_c5_issue_credential_rejects_an_unknown_purpose(registry: Registry) -> N
         Draft202012Validator(schema, registry=registry).validate(instance)
 
 
-def test_c5_link_credential_rejects_missing_virtual_key(registry: Registry) -> None:
-    """The whole point of this operation is carrying the secret across the
-    boundary -- an instance missing it is not a smaller version of the
-    request, it is a different, useless one."""
-    schema = {
-        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/link_credential_request"
-    }
-    with pytest.raises(Exception):
-        Draft202012Validator(schema, registry=registry).validate({"principal_id": "user-42"})
-
-
-def test_c5_configure_upstream_rejects_missing_discovery_key(registry: Registry) -> None:
-    schema = {
-        "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/configure_upstream_request"
-    }
-    with pytest.raises(Exception):
-        Draft202012Validator(schema, registry=registry).validate(
-            {"api_base_url": "http://litellm:4000/v1"}
-        )
-
-
 def test_c5_create_account_rejects_a_too_short_password(registry: Registry) -> None:
     """A password short enough to type by accident is not a smaller version
     of a real one -- see the minLength this shares with nothing else in the
@@ -421,24 +382,34 @@ def test_c5_create_account_rejects_an_unknown_role(registry: Registry) -> None:
         )
 
 
-def test_c5_get_account_rejects_missing_has_credential(registry: Registry) -> None:
-    """has_credential is the one field this response exists to carry safely
-    -- the alternative colleague.sh's original docker exec status check used
-    was printing a prefix of the actual key, which this operation exists to
-    stop doing."""
+def test_c5_get_account_rejects_any_trace_of_a_model_credential(registry: Registry) -> None:
+    """Since ADR-013 the interface calls no model, so an account carries no
+    credential and no model list. A response that still reports one means a
+    secret, or a second copy of inference's scope, lives in the interface."""
     schema = {
         "$ref": "https://schemas.base.internal/c5_identity.schema.json#/$defs/get_account_response"
     }
-    with pytest.raises(Exception):
-        Draft202012Validator(schema, registry=registry).validate(
-            {
-                "account_id": "acct-1",
-                "principal_id": "user-42",
-                "display_name": "Jane",
-                "role": "user",
-                "model_ids": [],
-            }
-        )
+    base = {
+        "account_id": "acct-1",
+        "principal_id": "user-42",
+        "display_name": "Jane",
+        "role": "user",
+    }
+    for extra in ({"has_credential": True}, {"model_ids": ["local-mistral-7b"]}):
+        with pytest.raises(ValidationError):
+            Draft202012Validator(schema, registry=registry).validate({**base, **extra})
+
+
+def test_c5_no_longer_defines_the_interface_model_operations(schemas: dict[str, Any]) -> None:
+    defs = schemas["https://schemas.base.internal/c5_identity.schema.json"]["$defs"]
+    gone = {
+        "grant_access_request",
+        "revoke_access_request",
+        "link_credential_request",
+        "ensure_model_catalog_entry_request",
+        "configure_upstream_request",
+    }
+    assert not gone & defs.keys()
 
 
 # ── c3_envelope.schema.json — what every product call shares ─────────────
