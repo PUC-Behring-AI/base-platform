@@ -36,6 +36,10 @@ minor carries breaking changes.
 
 - The composed base's metrics backend joins `interface-metrics`, the internal network base-interface's backend-for-frontend replicas are scraped on (base-interface#19). `tests/test_compose_base.py` checks that `interface-agents` and `interface-metrics` are declared identically in every fragment, as it already does for `base-internal`.
 
+### Fixed
+
+- harmony's CI sets up Node when a sibling declares it in `.nvmrc`. The gate's Node step requires the installed major to equal `.nvmrc`'s. Without this step, the first sibling with a `package.json` (base-interface#18) would fail every repository's harmony on the runner's preinstalled Node. Siblings declaring different majors fail the run by name.
+
 ## [0.7.0] — 2026-10-19
 
 ### Added
