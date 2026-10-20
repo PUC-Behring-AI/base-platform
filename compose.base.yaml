@@ -38,9 +38,7 @@ include:
   - path: ${BASE_ROOT:-..}/base-knowledge/compose.yaml
   - path: ${BASE_ROOT:-..}/base-inference/docker-compose.yml
   - path: ${BASE_ROOT:-..}/base-agents/compose.yaml
-  - path:
-      - ${BASE_ROOT:-..}/base-interface/compose.yaml
-      - ./compose.wiring.interface.yaml
+  - path: ${BASE_ROOT:-..}/base-interface/compose.yaml
   - path:
       - ./compose.yaml
       - ./compose.wiring.observability.yaml

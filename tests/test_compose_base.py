@@ -70,15 +70,6 @@ def composed(repo_root: Path) -> dict:
     return yaml.safe_load(result.stdout)
 
 
-class TestOpenWebUIWaitsOnLiteLLM:
-    """base-interface/compose.yaml cannot declare this dependency itself --
-    litellm is not defined there. This is the merge that puts it back."""
-
-    def test_depends_on_litellm_healthy(self, composed: dict) -> None:
-        depends = composed["services"]["open-webui"]["depends_on"]
-        assert depends["litellm"]["condition"] == "service_healthy"
-
-
 # The files that make up compose.base.yaml, read as written: compose v5
 # merges two different definitions of one network without a word, so the
 # merged config cannot show a divergence (base-knowledge#23).
@@ -88,7 +79,6 @@ _FRAGMENTS = (
     "base-agents/compose.yaml",
     "base-interface/compose.yaml",
     "base-platform/compose.yaml",
-    "base-platform/compose.wiring.interface.yaml",
     "base-platform/compose.wiring.observability.yaml",
 )
 
