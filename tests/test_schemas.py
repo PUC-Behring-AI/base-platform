@@ -604,6 +604,69 @@ def test_c3_error_rejects_a_code_that_is_not_machine_readable(registry: Registry
         _c3("error", registry).validate({"request_id": _RID, "code": "Not Found!", "message": "x"})
 
 
+# ── c3_envelope: the engine-defined bodies of decisions and C6 reads ──────
+
+
+@pytest.mark.parametrize(
+    ("def_name", "valid_instance"),
+    [
+        (
+            "decision",
+            {"about_request_id": _RID, "decision": "accept", "target": {"proposal": "p-1"}},
+        ),
+        (
+            "decision",
+            {
+                "about_request_id": _RID,
+                "decision": "override",
+                "target": {"proposal": "p-1"},
+                "detail": {"value": 3},
+            },
+        ),
+        ("provenance_query", {"filter": {"about_request_id": _RID}, "limit": 50}),
+        (
+            "provenance_query",
+            {"filter": {"collection": "answers", "record_id": "a-1"}, "limit": 1, "cursor": "7"},
+        ),
+    ],
+)
+def test_c3_engine_body_accepts_its_valid_instance(
+    def_name: str, valid_instance: dict[str, Any], registry: Registry
+) -> None:
+    _c3(def_name, registry).validate(valid_instance)
+
+
+@pytest.mark.parametrize(
+    ("def_name", "invalid_instance"),
+    [
+        ("decision", {"about_request_id": _RID, "decision": "maybe", "target": {"p": 1}}),
+        ("decision", {"about_request_id": _RID, "decision": "accept", "target": {}}),
+        ("decision", {"about_request_id": 7, "decision": "accept", "target": {"p": 1}}),
+        ("decision", {"decision": "accept", "target": {"p": 1}}),
+        (
+            "decision",
+            {"about_request_id": _RID, "decision": "accept", "target": {"p": 1},
+             "classification": _CLASS},
+        ),
+        ("provenance_query", {"filter": {}, "limit": 10}),
+        ("provenance_query", {"filter": {"record_id": "a-1"}, "limit": 10}),
+        ("provenance_query", {"filter": {"about_request_id": _RID}, "limit": 501}),
+        ("provenance_query", {"request_id": _RID, "filter": {"about_request_id": _RID},
+                              "limit": 1}),
+    ],
+    ids=[
+        "unknown-decision", "empty-target", "about-not-a-string", "no-about",
+        "screen-picks-a-class", "no-filter", "record-without-collection", "limit-too-large",
+        "reader-id-in-body",
+    ],
+)
+def test_c3_engine_body_rejects(
+    def_name: str, invalid_instance: dict[str, Any], registry: Registry
+) -> None:
+    with pytest.raises(ValidationError):
+        _c3(def_name, registry).validate(invalid_instance)
+
+
 # ── c8_record.schema.json — domain records, agents -> knowledge ─────────
 
 

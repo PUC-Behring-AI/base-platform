@@ -34,6 +34,15 @@ minor carries breaking changes.
 
 ### Added
 
+- **`BREAKING` — C3 carries human decisions and C6 reads in engine-defined bodies** (`docs/CONTRACTS.md` §C6, `schemas/c3_envelope.schema.json`: `decision`, `provenance_query`).
+  - A decision is `{about_request_id, decision: accept | override | dismiss | approve, target, detail?}`. `agents` classifies its C6 record as the strictest class among the records of the request decided on; the screen never picks it.
+  - A C6 read is `{filter, limit, cursor?}`. The reader-access rule is the instance's, declared by role in its agents instance. With no rule, every read is refused.
+
+  **What each layer must do:**
+  - `agents` serves both routes (base-agents#26);
+  - `interface` sends these bodies;
+  - an instance declares its reader-access rule in its agents instance, or no one reads provenance.
+
 - The composed base's metrics backend joins `interface-metrics`, the internal network base-interface's backend-for-frontend replicas are scraped on (base-interface#19). `tests/test_compose_base.py` checks that `interface-agents` and `interface-metrics` are declared identically in every fragment, as it already does for `base-internal`.
 
 ### Fixed
