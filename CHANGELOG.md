@@ -39,6 +39,7 @@ minor carries breaking changes.
 ### Fixed
 
 - harmony's CI sets up Node when a sibling declares it in `.nvmrc`. The gate's Node step requires the installed major to equal `.nvmrc`'s. Without this step, the first sibling with a `package.json` (base-interface#18) would fail every repository's harmony on the runner's preinstalled Node. Siblings declaring different majors fail the run by name.
+- harmony's CI installs `psycopg` and `psycopg-pool`, the client of base-interface's account store (base-interface#32). Its tests start a throwaway Postgres in Docker.
 
 ## [0.7.0] — 2026-10-19
 
