@@ -134,7 +134,7 @@ jobs:
       - name: Install gate dependencies
         run: |
           pip install pytest pytest-cov pyyaml "jsonschema[format-nongpl]" referencing \
-            ruff httpx uvicorn fastapi bcrypt
+            ruff httpx uvicorn fastapi bcrypt "psycopg[binary]" psycopg-pool
           if [ -d base-knowledge ]; then
             pip install "./base-knowledge[dev]" -e ./base-knowledge/tests/fake_module
           fi
