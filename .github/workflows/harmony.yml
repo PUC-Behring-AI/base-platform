@@ -93,6 +93,37 @@ jobs:
         with:
           python-version: "3.13"
 
+      # A sibling with a package.json is checked by the gate's Node step,
+      # which fails unless the installed Node major equals that sibling's
+      # .nvmrc. The runner's preinstalled Node is whatever the image ships,
+      # so set up the one the siblings declare. Two .nvmrc files naming
+      # different majors fail here, by name: one Node per run.
+      - name: Find the Node version the siblings declare
+        id: node
+        run: |
+          set -euo pipefail
+          majors=""
+          for f in */.nvmrc; do
+            [ -f "$f" ] || continue
+            major="$(tr -d '[:space:]v' < "$f")"; major="${major%%.*}"
+            echo "$f: $major"
+            majors="$(printf '%s\n%s' "$majors" "$major" | sed '/^$/d' | sort -u)"
+          done
+          if [ -z "$majors" ]; then
+            echo "no .nvmrc in any sibling: no Node to set up"
+            exit 0
+          fi
+          if [ "$(printf '%s\n' "$majors" | wc -l)" -ne 1 ]; then
+            echo "::error::siblings declare different Node majors in .nvmrc: $(echo $majors)"
+            exit 1
+          fi
+          echo "version=$majors" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        if: steps.node.outputs.version != ''
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+
       - name: Install bats
         uses: bats-core/bats-action@3.0.0
         with:
