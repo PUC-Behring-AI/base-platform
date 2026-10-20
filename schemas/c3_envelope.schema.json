@@ -72,6 +72,29 @@
         { "if": { "properties": { "state": { "enum": ["queued", "running"] } } }, "then": { "allOf": [ { "not": { "required": ["result"] } }, { "not": { "required": ["error"] } } ] } }
       ]
     },
+    "decision": {
+      "type": "object",
+      "description": "The body of a human decision on a model proposal, sent to agents' decision route. agents emits it as a C6 record with the decision in payload. The screen never chooses its class: agents classifies it as the strictest class among the C6 records of the request decided on. target names what was decided (a proposal, a document) in the instance's terms.",
+      "properties": {
+        "about_request_id": { "type": "string", "format": "uuid" },
+        "decision": { "enum": ["accept", "override", "dismiss", "approve"] },
+        "target": { "type": "object", "minProperties": 1, "description": "Instance-defined." },
+        "detail": { "type": "object", "description": "Instance-defined; an override's new value, for instance." }
+      },
+      "required": ["about_request_id", "decision", "target"],
+      "additionalProperties": false
+    },
+    "provenance_query": {
+      "type": "object",
+      "description": "The body of an audit view's C6 read, sent to agents' read route. agents adds the reader's request id and forwards it to knowledge as a c6_query query, then answers with a response whose body holds records (and next_cursor), classified as the strictest class among them.",
+      "properties": {
+        "filter": { "$ref": "https://schemas.base.internal/c6_query.schema.json#/$defs/query/properties/filter" },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "cursor": { "type": "string" }
+      },
+      "required": ["filter", "limit"],
+      "additionalProperties": false
+    },
     "error": {
       "type": "object",
       "description": "A typed failure. code is machine-readable; message is for a person and must not carry classified content, because errors reach logs.",

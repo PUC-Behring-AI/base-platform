@@ -227,15 +227,26 @@ only `agents`. So the read goes interface → `agents` (C3) → `knowledge`:
   no filter would make the provenance store the widest read path in the system.
 - **Every record comes back under its own classification.** A record about
   confidential evidence is confidential to read.
-- **Who may read which class is not defined by the base yet.** Classification
-  says where data may go, not who may see it. Until a reader-access rule
-  exists, `agents` must not pass the interface a record of a class the caller
-  is not entitled to, and each instance states its rule.
+- **Who may read which class is the instance's rule, by role.** Classification
+  says where data may go, not who may see it. An agents instance declares
+  which roles read which classes. `agents` passes the interface no record of a
+  class the caller's roles do not grant. **With no rule declared, every read is
+  refused**: nobody reads by default. The rule is role × class only. Access per
+  assessment or per team would be a separate contract change.
+- **The interface sends the query as C3's `provenance_query`**: filter, limit
+  and cursor. `agents` adds the reader's request id and forwards a `c6_query`.
+  The answer is a C3 `response` whose body holds `records` (and
+  `next_cursor`), classified as the strictest class among them, or
+  `local-only` when there are none.
 - **The read is itself recorded**, under the reader's own request id.
 - **A human decision is a C6 record.** Accepting, overriding or dismissing a
   model proposal, or approving a document, is emitted by `agents` on the
   interface's behalf, with the decision in `payload`. It carries payload, so it
-  is provenance, not a metric.
+  is provenance, not a metric. The interface sends it as C3's `decision`
+  (`about_request_id`, `decision`, `target`, an optional `detail`). **The
+  screen never chooses its class.** `agents` classifies it as the strictest
+  class among the C6 records of the request decided on, and refuses a decision
+  about a request with no record.
 
 ### C7 — embeddings
 
