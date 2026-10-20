@@ -32,6 +32,10 @@ minor carries breaking changes.
   - `interface` reads it, and shows a decline as a decline, not as a failure;
   - an instance: nothing in its body schemas, which stay inside `body`.
 
+### Added
+
+- The composed base's metrics backend joins `interface-metrics`, the internal network base-interface's backend-for-frontend replicas are scraped on (base-interface#19). `tests/test_compose_base.py` checks that `interface-agents` and `interface-metrics` are declared identically in every fragment, as it already does for `base-internal`.
+
 ## [0.7.0] — 2026-10-19
 
 ### Added

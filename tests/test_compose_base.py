@@ -126,3 +126,27 @@ class TestBaseInternalNetwork:
 
     def test_it_has_no_route_out(self, composed: dict) -> None:
         assert composed["networks"]["base-internal"]["internal"] is True
+
+
+class TestInterfaceNetworks:
+    """The interface BFF's networks (base-interface specs/interface-socket.md
+    §3.7, §3.11). Each declared identically wherever it appears, for the same
+    reason as base-internal."""
+
+    @pytest.mark.parametrize("network", ["interface-agents", "interface-metrics"])
+    def test_every_declaration_is_the_same(
+        self, fragments: dict[str, dict], network: str
+    ) -> None:
+        declared = {
+            name: (fragment.get("networks") or {})[network]
+            for name, fragment in fragments.items()
+            if network in (fragment.get("networks") or {})
+        }
+        assert declared, f"no fragment declares {network}"
+        assert all(d == {"internal": True} for d in declared.values()), declared
+
+    def test_agents_joins_interface_agents(self, composed: dict) -> None:
+        assert "interface-agents" in composed["services"]["agents"]["networks"]
+
+    def test_the_metrics_backend_joins_interface_metrics(self, composed: dict) -> None:
+        assert "interface-metrics" in composed["services"]["prometheus"]["networks"]

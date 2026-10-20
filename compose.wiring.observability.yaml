@@ -10,8 +10,10 @@ services:
   prometheus:
     # knowledge lives on base-internal alone (base-knowledge#23): the
     # backend joins it to scrape knowledge:8001, and keeps default for the
-    # rest.
-    networks: [default, base-internal]
+    # rest. The interface's BFF replicas sit only on internal networks
+    # (base-interface specs/interface-socket.md §3.11): the backend joins
+    # interface-metrics, whose only other members they are, to scrape each.
+    networks: [default, base-internal, interface-metrics]
     volumes:
       - ${BASE_ROOT:-..}/base-knowledge/observability/scrape.d/knowledge.yml:/etc/prometheus/scrape.d/knowledge.yml:ro
       - ${BASE_ROOT:-..}/base-inference/observability/scrape.d/inference.yml:/etc/prometheus/scrape.d/inference.yml:ro
@@ -29,4 +31,7 @@ services:
 # tests/test_compose_base.py checks they stay identical).
 networks:
   base-internal:
+    internal: true
+  # Declared exactly as base-interface declares it.
+  interface-metrics:
     internal: true
