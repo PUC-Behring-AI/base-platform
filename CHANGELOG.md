@@ -21,6 +21,14 @@ minor carries breaking changes.
 
 ### Changed
 
+- **`BREAKING` — C5's interface half shrinks to accounts and roles** (`docs/CONTRACTS.md` §C5, `schemas/c5_identity.schema.json`).
+  - Removed: `grant_access`, `revoke_access`, `link_credential`, `ensure_model_catalog_entry` and `configure_upstream`, plus `has_credential` and `model_ids` from `get_account_response`.
+  - The interface calls no model since ADR-013, and model access is the scope of the credential `inference` issues.
+
+  **What each layer must do:**
+  - `interface` drops those operations with its chat UI (base-interface#32, #33);
+  - `platform`'s provisioning (`colleague create` in base-inference) stops calling them.
+
 - **`BREAKING` for people provisioned with `colleague create`: the chat UI is gone** (base-interface#33). base-interface removed Open WebUI, which called the model gateway directly, and the composition drops its wiring (`compose.wiring.interface.yaml`). The interface is a React shell behind a backend-for-frontend, and its accounts live in its own store; Open WebUI's accounts are not migrated. A person's gateway key keeps working from any OpenAI-compatible client. `colleague create` mints the key only (base-inference#124).
 
   **What an instance must do:** create interface accounts through base-interface's C5 operator command (`scripts/account.sh`), starting with an admin.
@@ -95,14 +103,6 @@ minor carries breaking changes.
   Who may read which class is still undefined in the base; each instance states its rule. **What each layer must do:**
   - `knowledge` serves the query;
   - `agents` exposes it over C3 and emits decisions.
-
-- **`BREAKING` — C5's interface half shrinks to accounts and roles** (`docs/CONTRACTS.md` §C5, `schemas/c5_identity.schema.json`).
-  - Removed: `grant_access`, `revoke_access`, `link_credential`, `ensure_model_catalog_entry` and `configure_upstream`, plus `has_credential` and `model_ids` from `get_account_response`.
-  - The interface calls no model since ADR-013, and model access is the scope of the credential `inference` issues.
-
-  **What each layer must do:**
-  - `interface` drops those operations with its chat UI (base-interface#32, #33);
-  - `platform`'s provisioning (`colleague create` in base-inference) stops calling them.
 
 ### Changed
 
