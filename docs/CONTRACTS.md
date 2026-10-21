@@ -195,7 +195,7 @@ and what only ever shipped (create and remove).
   anyway would make this operation a second way to read what
   `link_credential` already wrote once.
 
-**BREAKING, 0.7.0.** The interface half shrinks to accounts and roles. Five
+**BREAKING, 0.8.0.** The interface half shrinks to accounts and roles. Five
 operations existed only because the interface's earlier chat UI called the
 model gateway directly: grant and revoke access to a model, link a
 credential, register a model in the catalog, and configure the upstream

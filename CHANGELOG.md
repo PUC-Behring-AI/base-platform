@@ -19,6 +19,8 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-10-21
+
 ### Changed
 
 - **`BREAKING` — C5's interface half shrinks to accounts and roles** (`docs/CONTRACTS.md` §C5, `schemas/c5_identity.schema.json`).
