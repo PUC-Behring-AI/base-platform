@@ -427,7 +427,9 @@ the first.
   supplies `src/instance/`, which holds its routes, navigation entries and
   theme. A multi-stage build `FROM base-interface:<pinned tag>` joins the shell
   and the instance code. The gate's existing pin check covers that `FROM` line
-  (§7 of ADAPTATION.md), and no package registry is needed.
+  (§7 of ADAPTATION.md), and no package registry is needed. (ADR-014
+  amends this: `src/instance/` is a socket that composes screens from module
+  packages, and holds none of its own.)
 - **A backend-for-frontend (BFF)**: the engine's existing Python service, grown.
   It serves the built assets, owns login and the session, generates the request
   identifier (C6), and forwards product calls to `agents` over C3. It is the
@@ -461,3 +463,92 @@ image of its own, built the way ADAPTATION §4 builds a layer with modules. The
 engine's earlier chat UI, which called the model gateway directly, has no place
 in this shape and leaves the layer. C5's interface half then holds no model
 credential.
+
+---
+
+## ADR-014: An instance is a set of sockets; team code enters as modules
+
+**Context.** ADR-004 and ADR-005 say an instance repository carries the
+instance's code, and ADR-013 says the interface instance supplies
+`src/instance/`, which holds its screens. Read literally, every screen, flow and
+rule an instance needs is written inside its `<prefix>-<layer>` repositories.
+That breaks as soon as more than one team builds for an instance:
+
+- a team that develops a methodology library, or a set of screens, has to work
+  inside the instance's repositories and run the instance's infrastructure to
+  see its own work;
+- a second product for the same layer, a conversational screen next to a form
+  workflow say, has nowhere to go but into the first one's code;
+- a team's code written there names the instance, its client and its
+  infrastructure, so it can never run, or be reviewed, without them.
+
+One layer already works the other way: a team develops a library in its own
+repository, runs it alone, and the instance's knowledge repository only plugs
+it into the engine through `base_knowledge.modules` (ADR-011). That is the
+shape this record generalises.
+
+**Decision.** Three levels, each in its own repositories.
+
+- **Base** (`base-*`): the engines, reusable by any instance, consumed by tag.
+  The base never knows an instance exists (ADR-006).
+- **Sockets**: an instance's `<prefix>-<layer>` repositories. A socket receives
+  its layer's modules and plugs them into the engine. It holds what is the
+  instance's alone and no team's product: the configuration (ADAPTATION §4),
+  the brand and theme, the list of modules it plugs, the adapter that maps each
+  module onto the base's contracts, the image, and the tests that the plugged
+  whole works. ADR-011 calls an engine's entry point for code its socket; the
+  instance repository is the other half of that joint.
+- **Modules**: what a team develops, in that team's own repository, plugged
+  into a socket. A module:
+  - runs standalone for its team, with no base, no login and no instance
+    repository beside it; plugged mode is a second mode the socket turns on;
+  - never names the instance, its client, its contract or its infrastructure;
+    what is the client's (brand, logo, product name) stays in the socket;
+  - depends on no base package: its types, errors and port are its own, in its
+    own terms, and the socket maps them onto the contracts;
+  - is consumed at its team's `main`, not by tag. The socket records the
+    commit in each image it builds, and tests against `main` on a schedule,
+    opening an issue in the socket when `main` breaks it;
+  - changes only by pull request in the module's repository, reviewed and
+    merged by its team.
+
+How a module plugs in, per layer:
+
+| Layer | Plug |
+|---|---|
+| `knowledge`, `agents` | an installed Python package, discovered through `base_<layer>.modules` (ADR-011). The engine stamps every classification; a module never classifies |
+| `interface` | UI packages composed by the instance's `src/instance/`: the socket maps each module's routes and navigation into `defineInstance`, through lazy imports only; one copy of React, by deduplication; the theme stays the socket's; the socket supplies the calls the module makes over C3 |
+| `inference` | none: configuration only, because code inside the gateway could bypass the policy it enforces |
+| `platform` | none: the socket is the instance's decision record, its contract payloads and its base pin |
+
+This amends ADR-013's "the instance supplies `src/instance/`, which holds its
+routes, navigation entries and theme". The instance still supplies
+`src/instance/`, but as a socket: it composes screens that come from module
+packages and holds no screens of its own. It also narrows ADR-005's
+"instance repositories carry real software": the software a team develops is a
+module; what stays in the socket is the code that binds modules to the base.
+
+**Alternative discarded.** Keep every team's code in the instance's
+repositories, one directory per team, as ADR-013 read literally.
+
+**What that would have cost.** Each team would need the instance's
+infrastructure, credentials and base checkouts to run its own work, so the
+people who know the domain would be the slowest to change it. A second product
+in a layer would share a codebase with the first. And the code would name the
+instance throughout, so the day a team wanted to reuse its work for another
+client, the first client's vocabulary would come with it — the failure ADR-006
+exists to prevent, one level down.
+
+**Consequences.**
+
+- An instance has two kinds of dependency, with two rules: the base by tag
+  (`<prefix>-platform/base-version.yaml`), each module at `main` with the
+  commit recorded. A module's `main` can break a socket between two of the
+  socket's own changes; the scheduled test is what finds it.
+- A module repository is not a member of the base or of an instance. It has no
+  `# Base:` line and no harmony run. It keeps its own tests, and its own check
+  that no instance term appears in it.
+- A socket that plugs a private module reads it in CI with a read-only key of
+  its own, as harmony reads private siblings (ADAPTATION §3).
+- No engine change was needed: `base_<layer>.modules` and `defineInstance`
+  already accept code from another package. `ADAPTATION.md` §4 says how.

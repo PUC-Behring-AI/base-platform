@@ -16,7 +16,7 @@ already did once.
 | `knowledge` | Ingestion, relational, vector, RDF graph, object store, assignment of the sensitivity classification at the source, **the provenance store** | No notion of business flow. Never calls a generative model — embeddings only, over C7. Holds no operational metric. |
 | `inference` | Ray Serve, vLLM, KubeRay, LiteLLM, virtual keys, budgets, elasticity, enforcement of the routing policy | Knows nothing about the domain. Never reads the knowledge base. |
 | `agents` | Flows, orchestration, MCP, guardrails, the routing decision, explainability | Persists no knowledge. Manages no GPU. Renders nothing. Does not *store* the audit trail — it emits to it. |
-| `interface` | Session, layout, the frontend shell an instance's screens build into, the backend-for-frontend, visualisation, audit view | Does not talk to `knowledge` or `inference`. Exactly one arrow leaves here: the backend-for-frontend, to `agents` (ADR-013). |
+| `interface` | Session, layout, the frontend shell an instance composes its modules' screens into, the backend-for-frontend, visualisation, audit view | Does not talk to `knowledge` or `inference`. Exactly one arrow leaves here: the backend-for-frontend, to `agents` (ADR-013). |
 | `platform` | Contracts, gate, cross-layer tests, release train, **the metrics backend**, the operator CLI | Not one line of product logic. Never stores a payload. |
 
 The `interface` restriction is what makes leak auditing tractable. With one
@@ -51,6 +51,8 @@ own repository.
 
 How an instance plugs in — the directory an engine reads its declarations from,
 and the one way code enters an engine — is in `ADAPTATION.md` §4 and ADR-011.
+An instance repository is a **socket**: the code a team develops for it is a
+**module**, in the team's own repository, which the socket plugs in (ADR-014).
 
 An engine generalised from a single case stiffens what was hard and abstracts
 what was easy.

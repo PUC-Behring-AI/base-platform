@@ -1,6 +1,6 @@
 # AGENTS-base.md — rules common to every repository in the base
 
-**Version: 1.4 · 2026-10-15**
+**Version: 1.5 · 2026-10-22**
 
 This file is the shared half of each repository's `AGENTS.md`. Every repository
 has its own `AGENTS.md` that **points here** and adds what is specific to it.
@@ -311,6 +311,36 @@ What that obliges, every time:
 
 A repository's own gate cannot replace step 3. Each gate checks one
 repository; the defects this rule exists for live between two of them.
+
+---
+
+## Base, sockets and modules
+
+Every repository an agent works in is one of three kinds (ADR-014,
+`ADAPTATION.md` §4 *Sockets and modules*). Recognise which before changing
+anything: what may enter depends on it.
+
+| Kind | How to recognise it | May contain | Must not contain |
+|---|---|---|---|
+| **Base** | named `base-<layer>`; its `AGENTS.md` declares `# Base:` and points here | engines, contracts, the gate, generic examples with `<prefix>` | an instance's, client's or module's name; anything only one instance needs (ADR-004, ADR-006) |
+| **Socket** | named `<prefix>-<layer>`; its `AGENTS.md` declares `# Base:` and has a *Sockets and modules* section | configuration, brand and theme, the list of modules it plugs, the adapters that map them onto the contracts, the image, the tests of the plugged whole | a team's product: screens, flows, methodology code. Those are modules. Engine code (it comes from the base by tag) |
+| **Module** | a team's own repository; its `AGENTS.md` has no `# Base:` line and does not point here | the team's product, runnable standalone, with its own tests and its own check of forbidden terms | the instance's, client's or contract's name, its infrastructure, or an import of a base package |
+
+What follows from the kind:
+
+- **In a base repository**, a need that only one instance has is not built
+  here. It belongs in that instance's socket or in a module (ADR-004).
+- **In a socket**, new product code is not written here. It goes to the
+  module that owns it, by pull request in that module's repository, or, if no
+  module owns it yet, it is raised with the instance's owner before any code is
+  written. A fix a socket needs in a module is a pull request in the module,
+  never a patch to the module's code. A module dependency that breaks the
+  socket's rules may be left out of the socket's build, with the module's
+  pull request or issue for the real fix; when it cannot be, it blocks.
+- **In a module**, this file's axioms do not bind, and harmony does not run:
+  the module's own `AGENTS.md` and CI do. A module's pull request is reviewed
+  and merged by its team. An agent working for a socket opens it and never
+  merges it.
 
 ---
 
