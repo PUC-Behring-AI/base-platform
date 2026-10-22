@@ -1,5 +1,5 @@
 # AGENTS.md — base-platform
-# Follows AGENTS-base.md v1.4, at docs/AGENTS-base.md — this repository hosts
+# Follows AGENTS-base.md v1.5, at docs/AGENTS-base.md — this repository hosts
 # that file, and still follows it like every other repository in the base.
 # Base: v0.8.0
 
@@ -92,6 +92,10 @@ runtime.
 | every engine and instance | `docs/AGENTS-base.md` | the first lines of each `AGENTS.md` |
 | every instance | `docs/ADAPTATION.md`, `VERSION`, `CHANGELOG.md` | `<prefix>-platform/base-version.yaml` |
 | `compose.base.yaml` | each engine's `compose.yaml` and observability fragment | sibling paths under `BASE_ROOT` |
+
+An instance's repositories are sockets, and the code its teams develop
+enters as modules in those teams' own repositories (`docs/ADR.md` ADR-014,
+`docs/ADAPTATION.md` §4 *Sockets and modules*). This repository names neither.
 
 So a change here is the change with the widest reach in the base. A schema
 or gate change can turn every sibling red. Run `scripts/harmony.sh` before

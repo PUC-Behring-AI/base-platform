@@ -19,6 +19,13 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **An instance is a set of sockets; team code enters as modules** (`docs/ADR.md` ADR-014). An instance's `<prefix>-<layer>` repositories plug modules into the engines; a team's product — screens, flows, methodology code — lives in that team's own repository, runs standalone, never names the instance, and is consumed at its `main` with the commit recorded in the image. ADR-014 amends ADR-013's "the instance supplies `src/instance/`": the interface instance composes screens from module packages and holds none of its own.
+  - `docs/ADAPTATION.md` §4 gains *Sockets and modules*, and its interface bullet says how a UI module is composed (lazy routes, one React); §5 sends domain code to modules.
+  - `AGENTS-base.md` 1.5 adds *Base, sockets and modules*: which kind of repository an agent is in, and what each may contain.
+  - Not `BREAKING`: no contract and no engine changes. An instance whose interface already holds its screens in `src/instance/` keeps building; ADR-014 says where those screens belong.
+
 ## [0.8.0] — 2026-10-21
 
 ### Changed

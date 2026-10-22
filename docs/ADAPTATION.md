@@ -188,7 +188,7 @@ and section 5 covers it.
 | `knowledge` | `ontology/` (RDF/OWL), `connectors/` (sources), `collections/` (domain records written over C8, each with a class), `taxonomy.yaml` |
 | `inference` | `models.yaml` (served models and where each runs); `tiers.yaml` is pending — nothing reads it yet, and base-inference#106 defines it |
 | `agents` | `flows/`, `prompts/`, `tools/` (MCP declarations) |
-| `interface` | `src/instance/` (code): routes, navigation entries, theme. Built into an image `FROM base-interface:<tag>` (ADR-013) |
+| `interface` | `src/instance/` (code): theme, and the routes and navigation entries it maps from module packages. Built into an image `FROM base-interface:<tag>` (ADR-013, ADR-014) |
 | `platform` | `schemas/` (C1–C6 payloads), `base-version.yaml` |
 
 **`taxonomy.yaml` is the most important file on that list.** It is where the
@@ -248,12 +248,21 @@ Python package, discovered through the entry-point group
   group. `inference` takes configuration only, because code inside the gateway
   could bypass the very policy it enforces.
 - `interface` takes code by a different socket, because a browser bundle is
-  not an installed package (ADR-013):
+  not an installed package (ADR-013, ADR-014):
   - the instance's `src/instance/` is compiled into the engine's frontend
-    shell at image build;
+    shell at image build. It composes the screens of one or more module
+    packages: it maps each module's routes and navigation entries into
+    `defineInstance`, owns the theme, and supplies the calls a module makes
+    over C3. The screens themselves live in the modules;
+  - route components are lazy imports only. The build validates the instance
+    by loading `src/instance/index.ts` in Node before bundling, so a static
+    import of a module package from that file fails the build;
+  - a module package declares React, React DOM and React Router as peers, and
+    the instance's build deduplicates them, so the page holds one copy of each;
   - an instance export that is missing or invalid fails the build;
   - the only process with a route out is the engine's backend-for-frontend,
     on a network that reaches only `agents`.
+  `base-interface`'s `specs/interface-socket.md` gives the exact build.
 - A module loads only when the instance manifest lists it under `modules:`.
   Listed but not installed — refuse to start. Installed but not listed —
   ignored, and logged.
@@ -269,6 +278,50 @@ instance code, where no base test can see it.
 **A container that runs instance code reaches only internal services.** In
 process, a module could call a model provider directly and walk around C2. The
 network is what stops that, not a code review.
+
+### Sockets and modules
+
+An instance's repositories are **sockets**: each one receives its layer's
+**modules** and plugs them into the engine (ADR-014). The code a team develops
+— a methodology library, a set of screens, a flow — is a module, in that
+team's own repository. The socket keeps what is the instance's alone and no
+team's product: configuration, brand and theme, the list of modules it plugs,
+the adapter that maps each module onto the contracts, the image, and the tests
+of the plugged whole.
+
+| Layer | How a module plugs in |
+|---|---|
+| `knowledge`, `agents` | a Python package installed in the instance image, discovered through `base_<layer>.modules`, loaded when the manifest lists it (above) |
+| `interface` | a UI package whose routes `src/instance/` maps, lazily, into the shell (above) |
+| `inference` | none: configuration only |
+| `platform` | none |
+
+A module:
+
+- **runs standalone** for its team, with no base, no login and no instance
+  repository beside it. Plugged mode is a second mode the socket turns on;
+- **never names the instance**, its client, its contract or its
+  infrastructure. What is the client's — brand, logo, product name — stays in
+  the socket. A module keeps its own list of forbidden terms and checks
+  itself against it; the base's leak denylist is the wrong list, because it
+  holds domain words a module may need;
+- **depends on no base package.** Its types, errors and port are its own; the
+  socket's adapter maps them onto the contracts;
+- **is consumed at its team's `main`**, not by tag. The socket records the
+  commit in each image (a build argument written into an image label) and
+  tests against `main` on a schedule, opening an issue in the socket when
+  `main` breaks it. A private module is read in CI with a read-only deploy key
+  held in a secret of the socket's own, as in §3;
+- **changes by pull request in its own repository**, which its team reviews
+  and merges. A module repository is not a member of the base or of an
+  instance: no `# Base:` line, no harmony run, its own tests.
+
+There is no package registry for modules either. The image build takes the
+module from a sibling checkout of its repository, passed as a Docker build
+context:
+
+    docker build --build-context <module>=../<module> \
+                 --build-arg <MODULE>_SHA=$(git -C ../<module> rev-parse HEAD) .
 
 ### Building the instance image
 
@@ -295,8 +348,11 @@ citing the convention written here.
 
 ## 5. Write the code that is only yours
 
-Computation, validation, methodology rules. This lives in the instance repository
-and should not be squeezed into YAML.
+Computation, validation, methodology rules. This should not be squeezed into
+YAML. It lives in a **module**, in the repository of the team that develops it,
+and the instance's socket plugs it in (§4, *Sockets and modules*). What stays
+in the instance repository is the code that binds modules to the base: the
+adapters, the brand, the composition.
 
 **When you need something the engine cannot express**, the rule is: open an
 extension point in the engine only when **two** instances ask for the same thing,
