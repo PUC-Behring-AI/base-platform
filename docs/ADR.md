@@ -518,7 +518,7 @@ How a module plugs in, per layer:
 |---|---|
 | `knowledge`, `agents` | an installed Python package, discovered through `base_<layer>.modules` (ADR-011). The engine stamps every classification; a module never classifies |
 | `interface` | UI packages composed by the instance's `src/instance/`: the socket maps each module's routes and navigation into `defineInstance`, through lazy imports only; one copy of React, by deduplication; the theme stays the socket's; the socket supplies the calls the module makes over C3 |
-| `inference` | none: configuration only, because code inside the gateway could bypass the policy it enforces |
+| `inference` | none today: configuration only, because code inside the gateway could bypass the policy it enforces. Accepting modules in this layer is open, and needs its own record that keeps the policy out of a module's reach |
 | `platform` | none: the socket is the instance's decision record, its contract payloads and its base pin |
 
 This amends ADR-013's "the instance supplies `src/instance/`, which holds its
