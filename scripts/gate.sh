@@ -295,15 +295,15 @@ _step "arquivos YAML"
 # `while read` em vez de `mapfile`: o bash da Apple é 3.2 (licença GPLv2),
 # sem os builtins de array do bash 4+, e é o que qualquer pessoa do time roda
 # por padrão num Mac.
+# Os templates de um chart Helm são Go templates, não YAML: ficam de fora aqui
+# e são validados, já renderizados, no passo de charts.
 yaml_files=()
 while IFS= read -r f; do
     yaml_files+=("$f")
-# Os templates de um chart Helm são Go templates, não YAML: ficam de fora aqui
-# e são validados, já renderizados, no passo de charts.
 done < <(find "$TARGET_DIR" \
     -type d \( -name .git -o -name node_modules -o -name .venv \) -prune -o \
-    -path '*/deploy/chart/templates' -prune -o \
-    -path '*/deploy/charts/*/templates' -prune -o \
+    -path "$TARGET_DIR/deploy/chart/templates" -prune -o \
+    -path "$TARGET_DIR/deploy/charts/*/templates" -prune -o \
     -type f \( -name '*.yml' -o -name '*.yaml' \) -print | sort)
 
 if [ "${#yaml_files[@]}" -eq 0 ]; then
@@ -354,7 +354,7 @@ else
         # ${arr[@]+...}: array vazio com set -u no bash 3.2.
         _out="$(helm template gate "$_c" ${_vals[@]+"${_vals[@]}"} 2>&1)" \
             || { echo "$_out" >&2; _fail "helm template falhou em $_rel — veja acima"; }
-        echo "$_out" | kubeconform -strict -ignore-missing-schemas -kubernetes-version 1.36.0 -summary - \
+        printf '%s\n' "$_out" | kubeconform -strict -ignore-missing-schemas -kubernetes-version 1.36.0 -summary - \
             || _fail "kubeconform rejeitou o que $_rel renderiza — veja acima"
         helm lint --strict "$_c" ${_vals[@]+"${_vals[@]}"} \
             || _fail "helm lint --strict apontou erros em $_rel"

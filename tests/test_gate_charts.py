@@ -2,7 +2,8 @@
 
 Each test builds a fake base-* repository under tmp_path, so the pin step is
 skipped and only the YAML and chart steps decide the outcome. helm and
-kubeconform run offline: nothing here reaches a cluster or the network.
+kubeconform run without a cluster, but kubeconform fetches the Kubernetes
+schemas over the network (cached afterwards), so the first run needs network.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ ROOT = Path(__file__).parent.parent.resolve()
 GATE = ROOT / "scripts" / "gate.sh"
 VERSION = (ROOT / "VERSION").read_text().strip()
 
-pytestmark = pytest.mark.skipif(
+needs_helm = pytest.mark.skipif(
     shutil.which("helm") is None or shutil.which("kubeconform") is None,
     reason="helm/kubeconform not installed",
 )
@@ -78,12 +79,14 @@ def _gate(repo: Path, *, path: str | None = None) -> subprocess.CompletedProcess
     )
 
 
+@needs_helm
 def test_templates_are_not_parsed_as_yaml(tmp_path: Path) -> None:
     result = _gate(_repo(tmp_path))
     assert result.returncode == 0, result.stdout + result.stderr
     assert "arquivo(s) YAML válidos" in result.stdout
 
 
+@needs_helm
 def test_a_valid_chart_passes_the_chart_step(tmp_path: Path) -> None:
     result = _gate(_repo(tmp_path))
     assert result.returncode == 0, result.stdout + result.stderr
@@ -91,6 +94,7 @@ def test_a_valid_chart_passes_the_chart_step(tmp_path: Path) -> None:
     assert "kubeconform" in result.stdout
 
 
+@needs_helm
 def test_broken_chart_fails(tmp_path: Path) -> None:
     template = _GOOD_TEMPLATE.replace(
         ".Values.name }}\nspec", '.Values.must | required "x" }}\nspec'
@@ -100,6 +104,7 @@ def test_broken_chart_fails(tmp_path: Path) -> None:
     assert "helm template" in result.stdout + result.stderr
 
 
+@needs_helm
 def test_invalid_manifest_fails_kubeconform(tmp_path: Path) -> None:
     template = _GOOD_TEMPLATE.replace(
         "  selector:\n    matchLabels:\n      app: {{ .Values.name }}\n", ""
