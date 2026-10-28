@@ -2,5 +2,5 @@ apiVersion: v2
 name: schemas
 description: The base's contract schemas as one ConfigMap, a key per schema file
 type: application
-version: 0.9.0-dev
-appVersion: "0.9.0-dev"
+version: 0.9.0
+appVersion: "0.9.0"
