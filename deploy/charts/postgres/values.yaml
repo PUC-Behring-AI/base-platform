@@ -15,7 +15,8 @@ auth:
 storage:
   className: base-rwo
   size: 1Gi
-  # Some images keep data under /var/lib/postgresql rather than .../data.
+  # PGDATA is set to <mountPath>/pgdata, so data lands on the volume whatever
+  # the image major defaults to, and lost+found at the root never blocks initdb.
   mountPath: /var/lib/postgresql/data
 
 # NetworkPolicy ingress peers (podSelector / namespaceSelector maps). Empty
