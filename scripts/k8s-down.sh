@@ -18,6 +18,8 @@
 set -euo pipefail
 
 CONTEXT=kind-base
+# Where k8s-up.sh keeps cloud-provider-kind's log and pidfile.
+STATE="${XDG_CACHE_HOME:-$HOME/.cache}/base-kind"
 
 die() { echo "k8s-down: $*" >&2; exit 1; }
 
@@ -33,7 +35,8 @@ if ! kind get clusters | grep -qx base; then
 elif [ "$delete" -eq 1 ]; then
     kind delete cluster --name base
 else
-    helm --kube-context "$CONTEXT" list -A | awk 'NR > 1 {print $1, $2}' |
+    # --all: a release stuck pending-install or failed is removed too.
+    helm --kube-context "$CONTEXT" list -A --all | awk 'NR > 1 {print $1, $2}' |
         while read -r release ns; do
             helm --kube-context "$CONTEXT" uninstall "$release" -n "$ns" --wait
         done
@@ -49,8 +52,15 @@ if [ "$delete" -eq 1 ]; then
         docker rm -f "$proxy" >/dev/null
         echo "removed the Gateway proxy $proxy"
     done
-    if pgrep -f cloud-provider-kind >/dev/null; then
-        pkill -f cloud-provider-kind
-        echo "stopped cloud-provider-kind"
+    # Only the instance k8s-up.sh started (its pidfile): one started by
+    # hand, perhaps for another cluster, is left running.
+    pidfile="$STATE/cloud-provider-kind.pid"
+    if [ -f "$pidfile" ]; then
+        pid="$(cat "$pidfile")"
+        if ps -o command= -p "$pid" | grep -Eq '^([^ ]*/)?cloud-provider-kind( |$)'; then
+            kill "$pid"
+            echo "stopped cloud-provider-kind (pid $pid)"
+        fi
+        rm -f "$pidfile"
     fi
 fi

@@ -81,6 +81,37 @@ def test_up_refuses_required_variable_absent_from_env(tmp_path):
     assert not calls.exists(), calls.read_text()
 
 
+def test_up_reads_a_last_line_without_newline(tmp_path):
+    # The last line of .env.required has no newline: it is still required.
+    bin_dir, calls = _stub_tools(tmp_path)
+    inst = _instance(tmp_path, "FIRST_KEY=one\nSECOND_KEY=two\n")
+    (inst / ".env.required").write_text("FIRST_KEY interface\nTHIRD_KEY inference")
+    result = _run("k8s-up.sh", str(inst), path=bin_dir)
+    assert result.returncode != 0
+    assert "THIRD_KEY" in result.stderr
+    assert not calls.exists(), calls.read_text()
+
+
+def test_up_refuses_a_variable_without_namespace(tmp_path):
+    bin_dir, calls = _stub_tools(tmp_path)
+    inst = _instance(tmp_path, "FIRST_KEY=one\nSECOND_KEY=two\n")
+    (inst / ".env.required").write_text("# comment\nFIRST_KEY interface\nSECOND_KEY\n")
+    result = _run("k8s-up.sh", str(inst), path=bin_dir)
+    assert result.returncode != 0
+    assert ".env.required line 3: SECOND_KEY names no namespace" in result.stderr
+    assert not calls.exists(), calls.read_text()
+
+
+def test_up_refuses_an_unknown_namespace(tmp_path):
+    bin_dir, calls = _stub_tools(tmp_path)
+    inst = _instance(tmp_path, "FIRST_KEY=one\nSECOND_KEY=two\n")
+    (inst / ".env.required").write_text("FIRST_KEY interface\nSECOND_KEY inference nowhere\n")
+    result = _run("k8s-up.sh", str(inst), path=bin_dir)
+    assert result.returncode != 0
+    assert ".env.required line 2: SECOND_KEY: no namespace nowhere" in result.stderr
+    assert not calls.exists(), calls.read_text()
+
+
 def test_missing_chart_is_named(tmp_path):
     bin_dir, calls = _stub_tools(tmp_path)
     inst = _instance(tmp_path, "FIRST_KEY=one\nSECOND_KEY=two\n")

@@ -599,7 +599,8 @@ kindnet's policy engine lets a new pod's packets through until it has learnt
 the pod's address: measured, a request made the moment a pod in `knowledge`
 started reached the internet, and the same request five seconds later timed
 out. The policies hold after that window, which is why `k8s-test.sh`'s probes
-wait before they ask; a hook Job's first seconds on kind are not covered.
+wait before they ask; a hook Job's first seconds on kind are not covered
+(base-platform#90).
 
 Measured on 2026-10-28 on an Apple Silicon Mac (Docker Desktop with 7.75 GiB,
 kind v0.33.0, Kubernetes 1.36.4), with the layer images already in Docker's

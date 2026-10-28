@@ -32,6 +32,9 @@ step() { echo "── $*"; }
 kc() { kubectl --context "$CONTEXT" "$@"; }
 
 [ $# -eq 0 ] || die "usage: scripts/k8s-test.sh"
+for tool in kubectl docker python3 openssl; do
+    command -v "$tool" >/dev/null || die "$tool is not installed"
+done
 python3 -c 'import jsonschema' 2>/dev/null || die "python3 has no jsonschema (pip install -e .)"
 
 # ── 1. Ready ────────────────────────────────────────────────────────────────
@@ -49,11 +52,17 @@ done
 
 step "2. login and a C3 job through the Gateway"
 proxy="$(docker ps -q --filter "label=io.x-k8s.cloud-provider-kind.gateway.name=base/edge/base")"
-published="$( [ -z "$proxy" ] || docker port "$proxy" 80/tcp 2>/dev/null | grep -m1 '0.0.0.0' | sed 's/.*://')"
+published=""
+# `docker port` fails when the proxy has no host binding (Linux, where the
+# Gateway's address itself is reachable): then the address is used.
+[ -z "$proxy" ] || published="$({ docker port "$proxy" 80/tcp || true; } | sed -n '/^0\.0\.0\.0:/{s/.*://p;q;}')"
 if [ -n "$published" ]; then
     url="http://127.0.0.1:$published"
 else
-    url="http://$(kc -n edge get gateway base -o jsonpath='{.status.addresses[0].value}')"
+    address="$(kc -n edge get gateway base -o jsonpath='{.status.addresses[0].value}')"
+    [ -n "$address" ] || die "Gateway base has neither a localhost port nor an address"
+    echo "the Gateway's proxy has no localhost port: using its address on the kind network"
+    url="http://$address"
 fi
 echo "Gateway: $url"
 
@@ -173,7 +182,7 @@ spec:
           # kindnet's policy engine lets a new pod's packets through until
           # it has learnt the pod's address (measured: a request at start
           # reached example.org, the same request 5 s later timed out), so
-          # the probe waits before it asks.
+          # the probe waits before it asks. Tracked in base-platform#90.
           command: [sh, -c, "sleep 10 && exec wget -T 5 -O /dev/null $target"]
 EOF
     local outcome=""
