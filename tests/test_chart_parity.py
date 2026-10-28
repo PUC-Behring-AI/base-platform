@@ -50,13 +50,8 @@ def _run(tmp_path, capsys, compose=COMPOSE, rendered=RENDERED, mapping=MAP):
     for name, text in (("compose", compose), ("rendered", rendered), ("map", mapping)):
         paths[name] = tmp_path / f"{name}.yaml"
         paths[name].write_text(text)
-    code = chart_parity.main(
-        [
-            "--compose", str(paths["compose"]),
-            "--rendered", str(paths["rendered"]),
-            "--map", str(paths["map"]),
-        ]
-    )  # fmt: skip
+    args = [f"--{name}={path}" for name, path in paths.items()]
+    code = chart_parity.main(args)
     return code, capsys.readouterr()
 
 
@@ -144,6 +139,93 @@ def test_job_kind_selects_the_job(tmp_path, capsys):
     mapping = "services:\n  mig: {workload: mig, kind: Job}\n"
     code, out = _run(tmp_path, capsys, compose=compose, rendered=rendered, mapping=mapping)
     assert code == 0, out.out
+
+
+def _workload(kind="Deployment", env="[]", ports="[]", extra=""):
+    return (
+        f"kind: {kind}\nmetadata: {{name: bff}}\nspec: {{template: {{spec: {{containers: "
+        f"[{{name: a, env: {env}, ports: {ports}{extra}}}]}}}}}}\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        "environment: [AGENTS_BASE_URL=http://a, OTHER]",
+        "environment: {AGENTS_BASE_URL: http://a, OTHER: }",
+    ],
+)
+def test_environment_forms(tmp_path, capsys, environment):
+    compose = f"services:\n  bff:\n    image: x\n    {environment}\n"
+    env = "[{name: AGENTS_BASE_URL, value: a}, {name: OTHER, value: b}]"
+    code, out = _run(tmp_path, capsys, compose=compose, rendered=_workload(env=env))
+    assert code == 0, out.out
+    code, out = _run(tmp_path, capsys, compose=compose, rendered=_workload())
+    assert code == 1
+    assert "env OTHER compose=present chart=absent" in out.out
+
+
+@pytest.mark.parametrize("port", ["127.0.0.1:3000:3000", "3000:8080", "8080/tcp"])
+def test_ports_string_forms(tmp_path, capsys, port):
+    target = int(port.split("/")[0].split(":")[-1])
+    compose = f'services:\n  bff:\n    image: x\n    ports: ["{port}"]\n'
+    ok = _workload(ports=f"[{{containerPort: {target}}}]")
+    code, out = _run(tmp_path, capsys, compose=compose, rendered=ok)
+    assert code == 0, out.out
+    code, out = _run(tmp_path, capsys, compose=compose, rendered=_workload())
+    assert f"port {target} compose=present chart=absent" in out.out
+
+
+def test_statefulset_is_found(tmp_path, capsys):
+    compose = "services:\n  bff:\n    image: x\n    environment: [A]\n"
+    rendered = _workload("StatefulSet", env="[{name: A, value: x}]")
+    code, out = _run(tmp_path, capsys, compose=compose, rendered=rendered)
+    assert code == 0, out.out
+
+
+def test_empty_rendered_document_is_skipped(tmp_path, capsys):
+    code, out = _run(tmp_path, capsys, rendered="---\n" + RENDERED + "---\n# nothing\n---\n")
+    assert code == 0, out.out
+
+
+def test_default_form_secret_is_detected(tmp_path, capsys):
+    compose = COMPOSE.replace(
+        "${ACCOUNTS_DB_BFF_PASSWORD:?set it}", "${ACCOUNTS_DB_BFF_PASSWORD:-}"
+    )
+    rendered = RENDERED.replace("valueFrom: {secretKeyRef: {name: s, key: k}}", "value: x")
+    code, out = _run(tmp_path, capsys, compose=compose, rendered=rendered)
+    assert code == 1
+    assert "secret ACCOUNTS_DB_BFF_PASSWORD compose=secret chart=plain" in out.out
+
+
+def test_env_from_is_reported(tmp_path, capsys):
+    rendered = RENDERED.replace(
+        "          env:", "          envFrom: [{secretRef: {name: s}}]\n          env:"
+    )
+    code, out = _run(tmp_path, capsys, rendered=rendered)
+    assert code == 1
+    assert "service bff: envFrom chart=present (declare each variable in env)" in out.out
+
+
+@pytest.mark.parametrize(
+    ("compose_extra", "rendered", "mapping", "needle"),
+    [
+        ('    ports: ["8000-8010:8000-8010"]\n', None, None, "bff"),
+        ('    ports: ["8080:${P}"]\n', None, None, "bff"),
+        ("", None, "services:\n  bff: {kind: Job}\n", "services.bff"),
+        ("", None, "services: [bff]\n", "services"),
+        ("", None, MAP + "ignore: {a: b}\n", "ignore"),
+        ("", "kind: Deployment\nmetadata: {name: bff}\nspec: {}\n", None, "bff"),
+        ("", None, MAP + "ignore:\n  - {service: bff, field: nope, reason: r}\n", "field"),
+    ],
+)
+def test_malformed_input_exits_two(tmp_path, capsys, compose_extra, rendered, mapping, needle):
+    compose = "services:\n  bff:\n    image: x\n" + compose_extra
+    code, out = _run(
+        tmp_path, capsys, compose=compose, rendered=rendered or RENDERED, mapping=mapping or MAP
+    )
+    assert code == 2
+    assert needle in out.err
 
 
 if __name__ == "__main__":

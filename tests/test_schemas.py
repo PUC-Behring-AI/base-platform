@@ -137,9 +137,7 @@ def _valid_c1_instance() -> dict[str, Any]:
     }
 
 
-def test_c1_evidence_accepts_a_valid_instance(
-    schemas: dict[str, Any], registry: Registry
-) -> None:
+def test_c1_evidence_accepts_a_valid_instance(schemas: dict[str, Any], registry: Registry) -> None:
     _validator(schemas["https://schemas.base.internal/c1_evidence.schema.json"], registry).validate(
         _valid_c1_instance()
     )
@@ -224,9 +222,7 @@ def test_c6_provenance_rejects_missing_classification(
         ).validate(instance)
 
 
-def test_c6_provenance_rejects_missing_payload(
-    schemas: dict[str, Any], registry: Registry
-) -> None:
+def test_c6_provenance_rejects_missing_payload(schemas: dict[str, Any], registry: Registry) -> None:
     instance = _valid_c6_instance()
     del instance["payload"]
     with pytest.raises(Exception):
@@ -616,18 +612,30 @@ def test_c3_engine_body_accepts_its_valid_instance(
         ("decision", {"decision": "accept", "target": {"p": 1}}),
         (
             "decision",
-            {"about_request_id": _RID, "decision": "accept", "target": {"p": 1},
-             "classification": _CLASS},
+            {
+                "about_request_id": _RID,
+                "decision": "accept",
+                "target": {"p": 1},
+                "classification": _CLASS,
+            },
         ),
         ("provenance_query", {"filter": {}, "limit": 10}),
         ("provenance_query", {"filter": {"record_id": "a-1"}, "limit": 10}),
         ("provenance_query", {"filter": {"about_request_id": _RID}, "limit": 501}),
-        ("provenance_query", {"request_id": _RID, "filter": {"about_request_id": _RID},
-                              "limit": 1}),
+        (
+            "provenance_query",
+            {"request_id": _RID, "filter": {"about_request_id": _RID}, "limit": 1},
+        ),
     ],
     ids=[
-        "unknown-decision", "empty-target", "about-not-a-string", "no-about",
-        "screen-picks-a-class", "no-filter", "record-without-collection", "limit-too-large",
+        "unknown-decision",
+        "empty-target",
+        "about-not-a-string",
+        "no-about",
+        "screen-picks-a-class",
+        "no-filter",
+        "record-without-collection",
+        "limit-too-large",
         "reader-id-in-body",
     ],
 )
