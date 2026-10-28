@@ -451,3 +451,92 @@ knowingly — not the gate's to force. It fails only on a version newer than
 There is no fixed release schedule. A version departs when the five fulfil it
 (§7), and between 0.2.0 and 0.5.0 that took five weeks and three version
 numbers. An instance boards a version by pinning its tag, never a `main`.
+
+## 10. Kubernetes
+
+Compose stays the development loop. Each layer also ships a Helm chart, so the
+same five layers can run on a cluster. The chart is hand-written, not generated
+from compose: compose has no notion of a hook, a policy or a storage class, and
+a converter would hide those choices. A parity check keeps the two in step
+instead. This section is numbered after §9 so that §5–§9 keep the numbers other
+documents cite; it belongs with §4 in spirit.
+
+### Layout, per layer
+
+    deploy/chart/
+      Chart.yaml              # version == the repository's release tag
+      values.yaml
+      values.schema.json      # required secret names, image overrides
+      templates/
+      templates/tests/        # helm test hooks
+      ci/kind-values.yaml     # values for the local kind cluster
+      parity.yaml             # compose-to-chart map, see below
+    tests/test_chart.py       # renders with `helm template`, asserts on the output
+
+The tests are pytest suites that render the chart and assert on the YAML. No
+other chart-test framework is used: one runner, one language, and the same
+assertions can call the parity checker. The gate (§3) adds its own chart step
+(`helm template`, `kubeconform`, `helm lint --strict`). A repository with a
+chart installs pinned helm and kubeconform in its gate workflow, as
+base-platform's `gate.yml` does; an unpinned tool changes the verdict without a
+change in the repository.
+
+### Rules every chart follows
+
+1. **Every secret reaches a chart only as an `existingSecret` name.**
+   `values.schema.json` makes it required, and no default secret value exists
+   anywhere. A default password is a password in every cluster that forgot to
+   override it, and a chart that renders without the secret fails late and far
+   from the cause.
+2. **Every image is overridable by `image.repository`, `image.tag` and
+   `image.digest`.** A socket image is built `FROM` the base image (§4) and must
+   replace it without editing the chart.
+3. **Network policy is namespaced `networking.k8s.io/v1` `NetworkPolicy`
+   only:** default deny, DNS allowed, each edge explicit, mirroring each compose
+   network. The network that has no route out (`base-internal`) gets no egress
+   beyond its members and DNS. Cluster-wide policy kinds differ between kind and
+   managed clusters, so a base chart cannot depend on them.
+4. **A Service port equals its container port.** The AWS VPC CNI's network
+   policy enforcement matches on the container port, so a remapped port is
+   silently not enforced.
+5. **Storage is a StorageClass by name from a value, default `base-rwo`,
+   `ReadWriteOnce`.** The kind harness creates `base-rwo` on local-path with
+   `WaitForFirstConsumer`, so the chart never names a provider.
+6. **One-shot jobs (migrations, loads) are Helm `pre-install,pre-upgrade` hook
+   Jobs** with `helm.sh/hook-delete-policy: before-hook-creation`, ordered by
+   hook weight the way compose orders them with
+   `depends_on: condition: service_completed_successfully`. Without the delete
+   policy a second upgrade fails on the Job that already exists.
+7. **No Bitnami chart or image.** Bitnami froze its catalogue on 2025-08-28;
+   what a chart pulls from there no longer receives fixes.
+8. **No cloud identity, ingress host, cloud ARN or account in a base chart.**
+   The base cannot know where it runs. Managed-cluster identity (EKS Pod
+   Identity) lives outside the chart, in the instance.
+
+### The parity check
+
+`scripts/chart_parity.py` compares a layer's compose file with the rendered
+chart. A layer's `tests/test_chart.py` calls it after `helm template`:
+
+    python3 scripts/chart_parity.py --compose compose.yaml \
+        --rendered rendered.yaml --map deploy/chart/parity.yaml
+
+It exits 0 when they match, 1 with one line per mismatch
+(`service <s>: <what> compose=<x> chart=<y>`), and 2 when an input cannot be
+read or `parity.yaml` is malformed. Per service it compares env var names (not
+values), container ports (`expose`/`ports` target against `containerPort`),
+secrets (a password-, key-, secret- or token-named variable fed by `${X:?}` or
+`${X:-}` in compose must be a `secretKeyRef` in the chart) and, when compose
+pins an image digest, that the chart's image carries the same digest. A compose
+service with `profiles:` is skipped unless `parity.yaml` lists it.
+
+    services:            # compose service -> chart workload
+      bff: {workload: bff}
+      accounts-migrate: {workload: accounts-migrate, kind: Job}
+    ignore:              # intentional differences; a reason is required
+      - {service: edge, field: ports, reason: "published port becomes a Gateway listener"}
+
+`kind` (Deployment, StatefulSet, DaemonSet or Job) is optional and only needed
+when two workloads share a name. `field` is one of `workload`, `env`, `ports`,
+`secrets`, `image`. An `ignore` entry without a reason is an error (exit 2): an
+unexplained difference is the drift the check exists to catch.
