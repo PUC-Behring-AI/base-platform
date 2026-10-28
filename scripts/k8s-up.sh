@@ -44,6 +44,8 @@ GATEWAY_API_URL=https://github.com/kubernetes-sigs/gateway-api/releases/download
 GATEWAY_API_SHA256=24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063a73  # gitleaks:allow published release checksum, not a secret
 NAMESPACES="interface agents knowledge inference edge"
 LAYERS="interface knowledge agents inference"
+# cloud-provider-kind's log and pidfile, when this harness starts it.
+STATE="${XDG_CACHE_HOME:-$HOME/.cache}/base-kind"
 
 die() { echo "k8s-up: $*" >&2; exit 1; }
 step() { echo "── $*"; }
@@ -70,9 +72,19 @@ env_value() {
     done < "$INSTANCE/.env"
 }
 
-missing=""
-while read -r var _; do
+# Every line names a variable and at least one namespace of this cluster; a
+# last line without a newline counts like any other.
+missing="" n=0
+while read -r var namespaces || [ -n "$var" ]; do
+    n=$((n + 1))
     case "$var" in ''|'#'*) continue ;; esac
+    [ -n "$namespaces" ] || die ".env.required line $n: $var names no namespace"
+    for want in $namespaces; do
+        case " $NAMESPACES " in
+            *" $want "*) ;;
+            *) die ".env.required line $n: $var: no namespace $want (one of: $NAMESPACES)" ;;
+        esac
+    done
     [ -n "$(env_value "$var")" ] || missing="$missing $var"
 done < "$INSTANCE/.env.required"
 [ -z "$missing" ] || die "required variable(s) unset or empty in $INSTANCE/.env:$missing"
@@ -92,7 +104,7 @@ done
 [ "$no_chart" -eq 0 ] || die "set BASE_ROOT to the directory that holds the base-* checkouts"
 
 step "tools"
-for tool in kind kubectl helm helmfile docker cloud-provider-kind; do
+for tool in kind kubectl helm helmfile docker cloud-provider-kind curl shasum; do
     command -v "$tool" >/dev/null || die "$tool is not installed"
 done
 
@@ -131,23 +143,34 @@ data:
 EOF
 kc apply -f "$ROOT/deploy/kind/storageclass.yaml"
 
+# Scratch space for the CRD bundle and the Secret files, which hold secret
+# values: removed however the script ends.
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
 step "Gateway API CRDs (v1.6.1, standard)"
-crds="$(mktemp)"
-trap 'rm -f "$crds"' EXIT
+crds="$work/gateway-api.yaml"
 curl -fsSL -o "$crds" "$GATEWAY_API_URL"
 got="$(shasum -a 256 "$crds" | cut -d' ' -f1)"
 [ "$got" = "$GATEWAY_API_SHA256" ] || die "Gateway API CRDs: sha256 $got, expected $GATEWAY_API_SHA256"
 kc apply --server-side --force-conflicts -f "$crds" >/dev/null
 
 step "cloud-provider-kind"
-if pgrep -f cloud-provider-kind >/dev/null; then
-    echo "already running"
+# One instance serves every kind cluster on the machine, so one already
+# running is used, not doubled. A process counts only when its command is
+# cloud-provider-kind itself, not a `tail -f` of its log. The one started
+# here is recorded in a pidfile, which k8s-down.sh --delete stops and
+# nothing else.
+CPK_PATTERN='^([^ ]*/)?cloud-provider-kind( |$)'
+if running="$(pgrep -f "$CPK_PATTERN")"; then
+    echo "already running (pid $(echo "$running" | tr '\n' ' '))"
 else
-    log="${TMPDIR:-/tmp}/cloud-provider-kind.log"
+    mkdir -p "$STATE"
     # No sudo: port mapping publishes the Gateway on localhost instead of
     # assigning its address to the host (which is what wants sudo on macOS).
-    echo "starting: cloud-provider-kind --enable-lb-port-mapping=true (log: $log)"
-    nohup cloud-provider-kind --enable-lb-port-mapping=true >"$log" 2>&1 &
+    echo "starting: cloud-provider-kind --enable-lb-port-mapping=true (log: $STATE/cloud-provider-kind.log)"
+    nohup cloud-provider-kind --enable-lb-port-mapping=true >"$STATE/cloud-provider-kind.log" 2>&1 &
+    echo $! > "$STATE/cloud-provider-kind.pid"
 fi
 
 step "namespaces"
@@ -161,15 +184,16 @@ for _ in $(seq 60); do
     kc get gatewayclass cloud-provider-kind >/dev/null 2>&1 && break
     sleep 2
 done
-kc get gatewayclass cloud-provider-kind >/dev/null || die "cloud-provider-kind registered no GatewayClass (log: ${TMPDIR:-/tmp}/cloud-provider-kind.log)"
+kc get gatewayclass cloud-provider-kind >/dev/null || die "cloud-provider-kind registered no GatewayClass (log: $STATE/cloud-provider-kind.log)"
 kc apply -f "$ROOT/deploy/kind/gateway.yaml"
 
 # ── 3. Secrets and ConfigMaps from the instance ─────────────────────────────
 
 step "secrets k8s-secrets"
 for ns in $NAMESPACES; do
-    file="$(mktemp)"
-    while read -r var namespaces; do
+    file="$work/$ns.env"
+    : > "$file"
+    while read -r var namespaces || [ -n "$var" ]; do
         case "$var" in ''|'#'*) continue ;; esac
         for want in $namespaces; do
             [ "$want" = "$ns" ] && printf '%s=%s\n' "$var" "$(env_value "$var")" >> "$file"
@@ -180,7 +204,6 @@ for ns in $NAMESPACES; do
             --dry-run=client -o yaml | kc apply -f - >/dev/null
         echo "$ns: $(cut -d= -f1 "$file" | tr '\n' ' ')"
     fi
-    rm -f "$file"
 done
 
 if [ -d "$INSTANCE/configmaps" ]; then
@@ -222,8 +245,15 @@ for _ in $(seq 60); do
     sleep 2
 done
 address="$(kc -n edge get gateway base -o jsonpath='{.status.addresses[0].value}')"
-[ -n "$address" ] || die "Gateway base has no address (log: ${TMPDIR:-/tmp}/cloud-provider-kind.log)"
+[ -n "$address" ] || die "Gateway base has no address (log: $STATE/cloud-provider-kind.log)"
 proxy="$(docker ps -q --filter "label=io.x-k8s.cloud-provider-kind.gateway.name=$CLUSTER/edge/base")"
-published="$( [ -z "$proxy" ] || docker port "$proxy" 80/tcp 2>/dev/null | grep -m1 '0.0.0.0' | sed 's/.*://')"
+published=""
+# `docker port` fails when the proxy has no host binding (Linux, where the
+# address itself is reachable): that is reported below, not fatal.
+[ -z "$proxy" ] || published="$({ docker port "$proxy" 80/tcp || true; } | sed -n '/^0\.0\.0\.0:/{s/.*://p;q;}')"
 echo "Gateway base: http://$address/ on the kind network"
-[ -z "$published" ] || echo "              http://localhost:$published/ from this machine"
+if [ -n "$published" ]; then
+    echo "              http://localhost:$published/ from this machine"
+else
+    echo "              not published on localhost (no proxy port binding): reach it on the kind network"
+fi

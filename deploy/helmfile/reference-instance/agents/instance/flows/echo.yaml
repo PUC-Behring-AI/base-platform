@@ -1,3 +1,4 @@
-# A job: read evidence from knowledge, then complete through inference.
+# A job: read evidence from knowledge, then a completion from agents' fake
+# inference (inference.mode: fake), so it needs no key.
 kind: module
 module: reference
