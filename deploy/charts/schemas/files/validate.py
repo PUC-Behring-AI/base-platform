@@ -1,0 +1,105 @@
+"""Shared schema-loading helper.
+
+Import this from a sibling repository rather than copying its logic — five
+copies of a twenty-line loader is the AGENTS.md-duplication defect again, just
+smaller. The convention matches scripts/gate.sh: base-platform is a sibling
+directory on disk, overridable with BASE_PLATFORM_DIR.
+
+    import os, sys
+    from pathlib import Path
+    default_dir = Path(__file__).parent.parent / "base-platform"
+    base_platform = Path(os.environ.get("BASE_PLATFORM_DIR", default_dir))
+    sys.path.insert(0, str(base_platform))
+    from schemas.validate import validator_for
+
+base-platform's own tests/test_schemas.py imports this too, rather than
+duplicating it locally — the first consumer does not get an exception from its
+own rule.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
+
+SCHEMAS_DIR = Path(__file__).parent
+
+
+def load_all_schemas(schemas_dir: Path = SCHEMAS_DIR) -> dict[str, dict[str, Any]]:
+    """Every *.schema.json in schemas_dir, keyed by its own $id.
+
+    Raises if a file has no $id — nothing could ever $ref it, which almost
+    certainly means it was added without reading how the others are wired.
+    """
+    schemas: dict[str, dict[str, Any]] = {}
+    for path in sorted(schemas_dir.glob("*.schema.json")):
+        with path.open(encoding="utf-8") as fh:
+            schema = json.load(fh)
+        if "$id" not in schema:
+            raise ValueError(f"{path.name} has no $id — nothing can $ref it")
+        schemas[schema["$id"]] = schema
+    return schemas
+
+
+def _formats(node: Any) -> set[str]:
+    if isinstance(node, dict):
+        found = {node["format"]} if isinstance(node.get("format"), str) else set()
+        for value in node.values():
+            found |= _formats(value)
+        return found
+    if isinstance(node, list):
+        return set().union(*(_formats(item) for item in node))
+    return set()
+
+
+def unchecked_formats(schemas: dict[str, dict[str, Any]]) -> set[str]:
+    """Every "format" the schemas use that this environment cannot check.
+
+    jsonschema checks date-time and uri only when optional packages are
+    installed (the format-nongpl extra); without them it passes anything, and
+    the schema looks like enforcement while enforcing nothing.
+    """
+    used: set[str] = set().union(*(_formats(s) for s in schemas.values()))
+    return used - set(Draft202012Validator.FORMAT_CHECKER.checkers)
+
+
+def build_registry(schemas: dict[str, dict[str, Any]] | None = None) -> Registry:
+    """A referencing.Registry with every schema's $id resolvable via $ref.
+
+    Refuses when a format the schemas use has no checker here: a validator
+    built from this registry would accept "yesterday" as a date-time.
+    """
+    if schemas is None:
+        schemas = load_all_schemas()
+    missing = unchecked_formats(schemas)
+    if missing:
+        raise RuntimeError(
+            f"no checker for format(s) {sorted(missing)} in this environment — "
+            'install "jsonschema[format-nongpl]>=4.0,<5.0" (base-platform#21)'
+        )
+    resources = [Resource.from_contents(s) for s in schemas.values()]
+    # Every resource here has a declared $id (load_all_schemas raises
+    # otherwise), so .id() is never None in practice.
+    pairs = [(r.id(), r) for r in resources]
+    assert all(uri is not None for uri, _ in pairs)
+    return Registry().with_resources(pairs)  # type: ignore[arg-type]
+
+
+def validator_for(schema_id_or_ref: str, registry: Registry | None = None) -> Draft202012Validator:
+    """A validator for a full schema ($id) or a $def within one (URI#/$defs/name).
+
+    >>> validator_for("https://schemas.base.internal/c1_evidence.schema.json")
+    >>> validator_for("https://schemas.base.internal/c5_identity.schema.json#/$defs/create_account_request")
+    """
+    registry = registry or build_registry()
+    checker = Draft202012Validator.FORMAT_CHECKER
+    if "#" in schema_id_or_ref:
+        return Draft202012Validator(
+            {"$ref": schema_id_or_ref}, registry=registry, format_checker=checker
+        )
+    schema = registry.contents(schema_id_or_ref)
+    return Draft202012Validator(schema, registry=registry, format_checker=checker)
