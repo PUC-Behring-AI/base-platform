@@ -20,6 +20,5 @@ storage:
   mountPath: /var/lib/postgresql/data
 
 # NetworkPolicy ingress peers (podSelector / namespaceSelector maps). Empty
-# means no pod may connect. `helm test` needs a peer that matches the label
-# app.kubernetes.io/component: test.
+# means no pod may connect, except this release's own helm test pod.
 allowFrom: []

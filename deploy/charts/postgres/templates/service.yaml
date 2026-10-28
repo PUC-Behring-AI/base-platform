@@ -6,7 +6,7 @@ metadata:
     {{- include "postgres.selector" . | nindent 4 }}
 spec:
   selector:
-    {{- include "postgres.selector" . | nindent 4 }}
+    {{- include "postgres.database-selector" . | nindent 4 }}
   ports:
     - name: postgres
       port: 5432
