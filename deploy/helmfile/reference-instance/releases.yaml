@@ -1,0 +1,11 @@
+# The instance's own releases, which the helmfile adds to the base's
+# (ADAPTATION §10). Each comes from a base chart on the helmfile's allow-list;
+# values are relative to this directory. This store is the example: knowledge
+# waits for it, though the base's knowledge, with no database configured,
+# does not use it.
+releases:
+  - name: knowledge-store
+    namespace: knowledge
+    chart: postgres
+    values: [values/common/knowledge-store.yaml]
+    neededBy: [knowledge]

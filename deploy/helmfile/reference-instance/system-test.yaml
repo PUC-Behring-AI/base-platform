@@ -1,0 +1,12 @@
+# What scripts/k8s-test.sh asks of this instance through the Gateway, after
+# its own checks (scripts/k8s_system_test.py documents every key). The base
+# alone has one flow: `echo`, a job its agents image serves.
+steps:
+  - flow: echo
+    input: {query: system test}
+    status: 202
+# A C1 search from namespace agents, straight to knowledge.
+knowledge_search:
+  query: system test
+  limit: 3
+  min_passages: 0

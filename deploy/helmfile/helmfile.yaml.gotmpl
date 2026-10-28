@@ -16,6 +16,21 @@
 # Order (`needs`): inference-db -> inference -> knowledge -> agents ->
 # interface, each after its namespace's schemas; interface also after its
 # account store, which its migration hook needs before anything else starts.
+#
+# An instance adds releases of its own in <instance>/releases.yaml (a store a
+# layer of its own needs, say), each from a base chart on the allow-list
+# below, after its namespace's schemas, and before every layer that names it
+# in `neededBy`:
+#
+#   releases:
+#     - name: knowledge-store
+#       namespace: knowledge
+#       chart: postgres                 # one of the allow-list
+#       values: [values/common/knowledge-store.yaml]   # relative to the instance
+#       needs: []                       # optional, as helmfile: <namespace>/<name>
+#       neededBy: [knowledge]           # optional: layers installed after it
+#
+# Anything else in the file, or a chart off the list, is refused.
 
 environments:
   kind: {}
@@ -23,6 +38,38 @@ environments:
 {{- $base := requiredEnv "BASE_ROOT" }}
 {{- $instance := requiredEnv "K8S_INSTANCE_DIR" }}
 {{- $env := .Environment.Name }}
+{{- $layers := list "interface" "agents" "knowledge" "inference" }}
+{{- $namespaces := list "interface" "agents" "knowledge" "inference" "edge" }}
+{{- $charts := dict "postgres" "../charts/postgres" }}
+{{- $baseReleases := list "schemas" "interface-accounts-db" "inference-db" "inference" "knowledge" "agents" "interface" }}
+{{- $fields := list "name" "namespace" "chart" "values" "needs" "neededBy" }}
+{{- $extra := list }}
+{{- $releasesFile := printf "%s/releases.yaml" $instance }}
+{{- if isFile $releasesFile }}
+{{- $doc := readFile $releasesFile | fromYaml }}
+{{- range $key, $_ := $doc }}
+{{- if ne $key "releases" }}{{ fail (printf "%s: unknown key %q (only: releases)" $releasesFile $key) }}{{ end }}
+{{- end }}
+{{- $extra = index $doc "releases" | default list }}
+{{- end }}
+{{- $neededBy := dict "interface" list "agents" list "knowledge" list "inference" list }}
+{{- range $extra }}
+{{- $r := . }}
+{{- range $key, $_ := $r }}
+{{- if not (has $key $fields) }}{{ fail (printf "%s: release %v: unknown key %q (one of: %s)" $releasesFile (index $r "name") $key (join ", " $fields)) }}{{ end }}
+{{- end }}
+{{- if not (index $r "name") }}{{ fail (printf "%s: a release has no name" $releasesFile) }}{{ end }}
+{{- if has $r.name $baseReleases }}{{ fail (printf "%s: release %s: the base already has a release by that name" $releasesFile $r.name) }}{{ end }}
+{{- if not (has (index $r "namespace") $namespaces) }}{{ fail (printf "%s: release %s: namespace %q is not one of: %s" $releasesFile $r.name (index $r "namespace") (join ", " $namespaces)) }}{{ end }}
+{{- if not (hasKey $charts (index $r "chart" | toString)) }}{{ fail (printf "%s: release %s: chart %q is not one of the base charts an instance may use: %s" $releasesFile $r.name (index $r "chart") (keys $charts | sortAlpha | join ", ")) }}{{ end }}
+{{- range index $r "values" | default list }}
+{{- if not (isFile (printf "%s/%s" $instance .)) }}{{ fail (printf "%s: release %s: no values file %s/%s" $releasesFile $r.name $instance .) }}{{ end }}
+{{- end }}
+{{- range index $r "neededBy" | default list }}
+{{- if not (has . $layers) }}{{ fail (printf "%s: release %s: neededBy %q is not a layer (one of: %s)" $releasesFile $r.name . (join ", " $layers)) }}{{ end }}
+{{- $_ := set $neededBy . (append (index $neededBy .) (printf "%s/%s" $r.namespace $r.name)) }}
+{{- end }}
+{{- end }}
 
 helmDefaults:
   wait: true
@@ -31,7 +78,7 @@ helmDefaults:
   createNamespace: false
 
 releases:
-{{- range list "interface" "agents" "knowledge" "inference" }}
+{{- range $layers }}
   - name: schemas
     namespace: {{ . }}
     chart: ../charts/schemas
@@ -74,7 +121,7 @@ releases:
   - name: inference
     namespace: inference
     chart: {{ $base }}/base-inference/deploy/chart
-    needs: [inference/inference-db]
+    needs: [inference/inference-db{{ range index $neededBy "inference" }}, {{ . }}{{ end }}]
     values:
       - secrets:
           existingSecret: k8s-secrets
@@ -86,7 +133,7 @@ releases:
   - name: knowledge
     namespace: knowledge
     chart: {{ $base }}/base-knowledge/deploy/chart
-    needs: [knowledge/schemas, inference/inference]
+    needs: [knowledge/schemas, inference/inference{{ range index $neededBy "knowledge" }}, {{ . }}{{ end }}]
     values:
       - {{ $instance }}/values/common/knowledge.yaml
       - {{ $instance }}/values/{{ $env }}/knowledge.yaml
@@ -94,7 +141,7 @@ releases:
   - name: agents
     namespace: agents
     chart: {{ $base }}/base-agents/deploy/chart
-    needs: [agents/schemas, knowledge/knowledge]
+    needs: [agents/schemas, knowledge/knowledge{{ range index $neededBy "agents" }}, {{ . }}{{ end }}]
     values:
       - {{ $instance }}/values/common/agents.yaml
       - {{ $instance }}/values/{{ $env }}/agents.yaml
@@ -102,7 +149,7 @@ releases:
   - name: interface
     namespace: interface
     chart: {{ $base }}/base-interface/deploy/chart
-    needs: [interface/interface-accounts-db, agents/agents]
+    needs: [interface/interface-accounts-db, agents/agents{{ range index $neededBy "interface" }}, {{ . }}{{ end }}]
     values:
       - secrets:
           existingSecret: k8s-secrets
@@ -120,3 +167,14 @@ releases:
 {{- end }}
       - {{ $instance }}/values/common/interface.yaml
       - {{ $instance }}/values/{{ $env }}/interface.yaml
+{{- range $extra }}
+
+  - name: {{ .name }}
+    namespace: {{ .namespace }}
+    chart: {{ index $charts .chart }}
+    needs: [{{ .namespace }}/schemas{{ range index . "needs" | default list }}, {{ . }}{{ end }}]
+    values:
+{{- range index . "values" | default list }}
+      - {{ $instance }}/{{ . }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,14 @@
+# releases.yaml's knowledge-store: base-platform's postgres chart, its
+# password from Secret k8s-secrets of namespace knowledge (.env.required).
+auth:
+  username: knowledge
+  database: knowledge
+  existingSecret: k8s-secrets
+  passwordKey: KNOWLEDGE_STORE_PASSWORD
+# The knowledge service and its jobs.
+allowFrom:
+  - podSelector:
+      matchExpressions:
+        - {key: app.kubernetes.io/name, operator: In, values: [base-knowledge]}
+        - {key: app.kubernetes.io/instance, operator: In, values: [knowledge]}
+        - {key: app.kubernetes.io/component, operator: In, values: [knowledge, job]}
