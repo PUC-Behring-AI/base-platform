@@ -69,7 +69,9 @@ echo "Gateway: $url"
 image="$(kc -n interface get deployment bff -o jsonpath='{.spec.template.spec.containers[0].image}')"
 origin="$(kc -n interface get deployment bff \
     -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="BFF_PUBLIC_ORIGIN")].value}')"
-[ -n "$image" ] && [ -n "$origin" ] || die "cannot read the BFF's image and origin"
+if [ -z "$image" ] || [ -z "$origin" ]; then
+    die "cannot read the BFF's image and origin"
+fi
 principal="system-test-$(date +%s)@example.org"
 password="$(openssl rand -hex 16)"
 
