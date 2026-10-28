@@ -39,6 +39,12 @@ def _kind(docs: list[dict[str, Any]], kind: str) -> dict[str, Any]:
     return doc
 
 
+def _schema_sources() -> dict[str, Path]:
+    """What the layers read from schemas/: every *.json and validate.py."""
+    schemas = ROOT / "schemas"
+    return {p.name: p for p in [*schemas.glob("*.json"), schemas / "validate.py"]}
+
+
 PG = ("auth.existingSecret=pg-secret", "auth.username=app", "auth.database=appdb")
 
 
@@ -46,14 +52,14 @@ PG = ("auth.existingSecret=pg-secret", "auth.username=app", "auth.database=appdb
 def test_schemas_configmap_has_every_schema() -> None:
     cm = _kind(_render("schemas"), "ConfigMap")
     assert cm["metadata"]["name"] == "base-platform-schemas"
-    expected = sorted(p.name for p in (ROOT / "schemas").glob("*.json"))
+    expected = sorted(_schema_sources())
     assert expected
     assert sorted(cm["data"]) == expected
 
 
 def test_schema_copy_in_sync() -> None:
-    source = {p.name: p.read_bytes() for p in (ROOT / "schemas").glob("*.json")}
-    copy = {p.name: p.read_bytes() for p in (CHARTS / "schemas" / "files").glob("*.json")}
+    source = {n: p.read_bytes() for n, p in _schema_sources().items()}
+    copy = {p.name: p.read_bytes() for p in (CHARTS / "schemas" / "files").iterdir()}
     assert copy == source, "run scripts/sync-chart-schemas.sh"
 
 

@@ -87,6 +87,18 @@ def test_templates_are_not_parsed_as_yaml(tmp_path: Path) -> None:
 
 
 @needs_helm
+def test_nested_worktrees_are_not_scanned(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    nested = repo / ".claude" / "worktrees" / "x" / "deploy" / "chart" / "templates"
+    nested.mkdir(parents=True)
+    (nested / "t.yaml").write_text("a: {{ .Values.x }}\n")
+    (nested / "bad.py").write_text("import os,sys\n")
+    (nested / "bad.sh").write_text("echo $x\n")
+    result = _gate(repo)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_helm
 def test_a_valid_chart_passes_the_chart_step(tmp_path: Path) -> None:
     result = _gate(_repo(tmp_path))
     assert result.returncode == 0, result.stdout + result.stderr

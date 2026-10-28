@@ -295,6 +295,8 @@ _step "arquivos YAML"
 # `while read` em vez de `mapfile`: o bash da Apple é 3.2 (licença GPLv2),
 # sem os builtins de array do bash 4+, e é o que qualquer pessoa do time roda
 # por padrão num Mac.
+# Worktrees aninhados em .claude/worktrees são outras cópias do repositório,
+# não parte deste: ficam de fora das varreduras de YAML, Python e shell.
 # Os templates de um chart Helm são Go templates, não YAML: ficam de fora aqui
 # e são validados, já renderizados, no passo de charts.
 yaml_files=()
@@ -302,6 +304,7 @@ while IFS= read -r f; do
     yaml_files+=("$f")
 done < <(find "$TARGET_DIR" \
     -type d \( -name .git -o -name node_modules -o -name .venv \) -prune -o \
+    -path "$TARGET_DIR/.claude/worktrees" -prune -o \
     -path "$TARGET_DIR/deploy/chart/templates" -prune -o \
     -path "$TARGET_DIR/deploy/charts/*/templates" -prune -o \
     -type f \( -name '*.yml' -o -name '*.yaml' \) -print | sort)
@@ -392,6 +395,7 @@ while IFS= read -r f; do
     py_files+=("$f")
 done < <(find "$TARGET_DIR" \
     -type d \( -name .git -o -name node_modules -o -name .venv -o -name __pycache__ \) -prune -o \
+    -path "$TARGET_DIR/.claude/worktrees" -prune -o \
     -type f -name '*.py' -print | sort)
 
 if [ "${#py_files[@]}" -eq 0 ]; then
@@ -416,6 +420,7 @@ while IFS= read -r f; do
     shell_files+=("$f")
 done < <(find "$TARGET_DIR" \
     -type d \( -name .git -o -name node_modules -o -name .venv \) -prune -o \
+    -path "$TARGET_DIR/.claude/worktrees" -prune -o \
     -type f -name '*.sh' -print | sort)
 # Um executável na raiz sem extensão (convenção deste projeto para o CLI de
 # operação) também conta, se existir — por nome genérico, não fixo: o nome
