@@ -19,7 +19,21 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-29
+
+### Added
+
+- **A Helm chart per layer** (base-knowledge#48, base-inference#128, base-agents#41, base-interface#52): each engine ships `deploy/chart`, so the base runs on a Kubernetes cluster as well as under compose.
+- **Chart conventions and a parity checker** (`docs/ADAPTATION.md`, #82). The conventions say how a layer's chart is written; the checker compares a chart's rendered workloads with the layer's compose fragment and fails on a difference that is not declared.
+- **`deploy/charts/schemas` and `deploy/charts/postgres`**: the contract schemas as a chart, and a small Postgres the layers use as their stores.
+- **A local kind harness and a system test** (#83): `scripts/k8s-up.sh`, `k8s-test.sh` and `k8s-down.sh` bring the whole base up on a local kind cluster, test it end to end and remove it.
+- **The gate's chart step**: `scripts/gate.sh` lints, renders and validates (kubeconform) every `deploy/chart` or `deploy/charts/<name>`, and stops parsing chart templates as YAML. CI installs the pinned `helm` and `kubeconform`.
+
 ### Changed
+
+- **base-interface's edge template reads its settings from the environment** (base-interface#52). `edge/default.conf.template` took Docker's DNS and `bff:8080` as literals; it now uses `${BFF_UPSTREAM}` and the name servers the nginx image exports as `NGINX_LOCAL_RESOLVERS`, and the composition sets `BFF_UPSTREAM=bff:8080` and `NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1`, which render the same configuration as before.
+  - Not `BREAKING`: no contract in `docs/CONTRACTS.md` changes, and an instance that uses the engine's edge unchanged needs nothing.
+  - An instance that overrides the edge template, or replaces the edge service's environment, must set both variables, or nginx starts with an empty upstream.
 
 - **An instance is a set of sockets; team code enters as modules** (`docs/ADR.md` ADR-014). An instance's `<prefix>-<layer>` repositories plug modules into the engines; a team's product — screens, flows, methodology code — lives in that team's own repository, runs standalone, never names the instance, and is consumed at its `main` with the commit recorded in the image. ADR-014 amends ADR-013's "the instance supplies `src/instance/`": the interface instance composes screens from module packages and holds none of its own.
   - `docs/ADAPTATION.md` §4 gains *Sockets and modules*, and its interface bullet says how a UI module is composed (lazy routes, one React); §5 sends domain code to modules.
