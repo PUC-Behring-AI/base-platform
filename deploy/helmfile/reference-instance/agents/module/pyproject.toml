@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reference-agents-module"
+version = "0.1.0"
+description = "The reference instance's one flow, for the kind system test"
+requires-python = ">=3.11"
+
+[project.entry-points."base_agents.modules"]
+reference = "reference_module:factory"
+
+[tool.setuptools]
+py-modules = ["reference_module"]

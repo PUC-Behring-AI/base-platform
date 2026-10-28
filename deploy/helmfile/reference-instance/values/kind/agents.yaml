@@ -1,0 +1,5 @@
+# Built FROM base-agents:local with the reference instance inside (agents/).
+image:
+  repository: localhost:5001/base-agents-reference
+  tag: local
+  pullPolicy: Always

@@ -1,0 +1,5 @@
+# The origin a browser uses for the interface. On kind the Gateway is
+# published on an ephemeral localhost port; reach it on this one with
+# `kubectl port-forward` or a matching Origin header (scripts/k8s-test.sh).
+bff:
+  publicOrigin: http://localhost:3001

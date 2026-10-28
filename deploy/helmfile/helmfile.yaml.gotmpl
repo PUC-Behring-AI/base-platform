@@ -1,0 +1,122 @@
+# The whole base as Helm releases, for scripts/k8s-up.sh (ADAPTATION §10).
+#
+# This file holds what every deployment shares: which releases exist, in
+# which namespace, in which order, and how they are wired to each other (the
+# database each layer uses, the Secret it reads, the Gateway it attaches to).
+# What one deployment decides (images, models, origins, sizes) comes from the
+# instance directory: values/common/<release>.yaml, then
+# values/<environment>/<release>.yaml, both required for each layer release
+# (an empty file is fine).
+#
+# Read from the environment, which k8s-up.sh sets:
+#   BASE_ROOT          the directory that holds the base-* checkouts
+#   K8S_INSTANCE_DIR   the instance directory
+#   KIND_NETWORK_CIDR  the kind docker network, where the Gateway's proxy runs
+#
+# Order (`needs`): inference-db -> inference -> knowledge -> agents ->
+# interface, each after its namespace's schemas; interface also after its
+# account store, which its migration hook needs before anything else starts.
+
+environments:
+  kind: {}
+---
+{{- $base := requiredEnv "BASE_ROOT" }}
+{{- $instance := requiredEnv "K8S_INSTANCE_DIR" }}
+{{- $env := .Environment.Name }}
+
+helmDefaults:
+  wait: true
+  waitForJobs: true
+  timeout: 600
+  createNamespace: false
+
+releases:
+{{- range list "interface" "agents" "knowledge" "inference" }}
+  - name: schemas
+    namespace: {{ . }}
+    chart: ../charts/schemas
+{{- end }}
+
+  - name: interface-accounts-db
+    namespace: interface
+    chart: ../charts/postgres
+    needs: [interface/schemas]
+    values:
+      - auth:
+          username: interface_owner
+          database: interface_owner
+          existingSecret: k8s-secrets
+          passwordKey: ACCOUNTS_DB_OWNER_PASSWORD
+        allowFrom:
+          - podSelector:
+              matchExpressions:
+                - {key: app.kubernetes.io/name, operator: In, values: [base-interface]}
+                - {key: app.kubernetes.io/instance, operator: In, values: [interface]}
+                - {key: app.kubernetes.io/component, operator: In, values: [identity-sidecar, accounts-migrate, bff]}
+
+  - name: inference-db
+    namespace: inference
+    chart: ../charts/postgres
+    needs: [inference/schemas]
+    values:
+      - auth:
+          username: litellm
+          database: litellm
+          existingSecret: k8s-secrets
+          passwordKey: POSTGRES_PASSWORD
+        allowFrom:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: base-inference
+                app.kubernetes.io/instance: inference
+                app.kubernetes.io/component: litellm
+
+  - name: inference
+    namespace: inference
+    chart: {{ $base }}/base-inference/deploy/chart
+    needs: [inference/inference-db]
+    values:
+      - secrets:
+          existingSecret: k8s-secrets
+        database:
+          host: inference-db
+      - {{ $instance }}/values/common/inference.yaml
+      - {{ $instance }}/values/{{ $env }}/inference.yaml
+
+  - name: knowledge
+    namespace: knowledge
+    chart: {{ $base }}/base-knowledge/deploy/chart
+    needs: [knowledge/schemas, inference/inference]
+    values:
+      - {{ $instance }}/values/common/knowledge.yaml
+      - {{ $instance }}/values/{{ $env }}/knowledge.yaml
+
+  - name: agents
+    namespace: agents
+    chart: {{ $base }}/base-agents/deploy/chart
+    needs: [agents/schemas, knowledge/knowledge]
+    values:
+      - {{ $instance }}/values/common/agents.yaml
+      - {{ $instance }}/values/{{ $env }}/agents.yaml
+
+  - name: interface
+    namespace: interface
+    chart: {{ $base }}/base-interface/deploy/chart
+    needs: [interface/interface-accounts-db, agents/agents]
+    values:
+      - secrets:
+          existingSecret: k8s-secrets
+        accountsDb:
+          host: interface-accounts-db
+        gateway:
+          parentRef: {name: base, namespace: edge, sectionName: http}
+{{- if eq $env "kind" }}
+        edge:
+          # The Gateway's proxy is a container on the kind network, outside
+          # the cluster; its traffic reaches the edge from that subnet.
+          allowFrom:
+            - ipBlock:
+                cidr: {{ requiredEnv "KIND_NETWORK_CIDR" }}
+{{- end }}
+      - {{ $instance }}/values/common/interface.yaml
+      - {{ $instance }}/values/{{ $env }}/interface.yaml

@@ -1,0 +1,9 @@
+# base-rwo, the StorageClass every base chart names by default (ADAPTATION
+# §10, rule 5): kind's local-path provisioner, bound when the pod is placed.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: base-rwo
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete

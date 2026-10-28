@@ -1,0 +1,15 @@
+# The local cluster the kind harness brings up (scripts/k8s-up.sh): one node,
+# Kubernetes 1.36, pinned by digest so every machine runs the same node.
+# kind's default CNI (kindnet) enforces NetworkPolicy, which the layer charts
+# rely on. containerd reads registry mirrors from certs.d, where k8s-up.sh
+# points localhost:5001 at the local registry container (kind-registry).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: base
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"

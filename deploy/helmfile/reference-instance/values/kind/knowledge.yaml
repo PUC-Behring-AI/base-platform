@@ -1,0 +1,4 @@
+image:
+  repository: localhost:5001/base-knowledge
+  tag: local
+  pullPolicy: Always

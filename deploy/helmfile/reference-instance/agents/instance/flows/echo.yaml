@@ -1,0 +1,3 @@
+# A job: read evidence from knowledge, then complete through inference.
+kind: module
+module: reference

@@ -1,0 +1,5 @@
+standIn:
+  image:
+    repository: localhost:5001/base-inference-stand-in
+    tag: local
+    pullPolicy: Always

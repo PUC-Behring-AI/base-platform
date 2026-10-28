@@ -1,0 +1,9 @@
+# The images scripts/k8s-images.sh builds and pushes to the kind registry, in
+# order: <image> <build context> [<Dockerfile, relative to the context>].
+# $BASE_ROOT is the directory that holds the base-* checkouts; a relative
+# context is relative to this directory.
+localhost:5001/base-interface:local          $BASE_ROOT/base-interface
+localhost:5001/base-knowledge:local          $BASE_ROOT/base-knowledge
+localhost:5001/base-agents:local             $BASE_ROOT/base-agents
+localhost:5001/base-inference-stand-in:local $BASE_ROOT/base-inference/stand-in
+localhost:5001/base-agents-reference:local   agents

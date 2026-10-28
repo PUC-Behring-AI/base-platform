@@ -1,0 +1,4 @@
+mode: standin
+models:
+  - {name: stand-in-chat, task: chat}
+  - {name: stand-in-embed, task: embed}
