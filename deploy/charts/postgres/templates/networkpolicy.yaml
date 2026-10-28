@@ -1,0 +1,28 @@
+# Default deny for the Postgres pod; DNS out, and ingress only from allowFrom.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "postgres.fullname" . }}
+  labels:
+    {{- include "postgres.selector" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "postgres.selector" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  {{- with .Values.allowFrom }}
+  ingress:
+    - from:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - port: 5432
+          protocol: TCP
+  {{- end }}
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

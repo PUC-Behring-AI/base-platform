@@ -1,0 +1,2 @@
+# Name of the ConfigMap that holds the schemas.
+name: base-platform-schemas

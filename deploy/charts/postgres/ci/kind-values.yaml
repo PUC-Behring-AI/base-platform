@@ -1,0 +1,4 @@
+auth:
+  username: app
+  database: app
+  existingSecret: postgres-auth

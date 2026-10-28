@@ -1,0 +1,24 @@
+image:
+  repository: postgres
+  tag: 18-alpine
+  # When set, the image is pulled by digest and the tag is ignored.
+  digest: sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+
+auth:
+  username: ""
+  database: ""
+  # Name of an existing Secret; the chart never creates one.
+  existingSecret: ""
+  # Key in that Secret that holds the password.
+  passwordKey: password
+
+storage:
+  className: base-rwo
+  size: 1Gi
+  # Some images keep data under /var/lib/postgresql rather than .../data.
+  mountPath: /var/lib/postgresql/data
+
+# NetworkPolicy ingress peers (podSelector / namespaceSelector maps). Empty
+# means no pod may connect. `helm test` needs a peer that matches the label
+# app.kubernetes.io/component: test.
+allowFrom: []

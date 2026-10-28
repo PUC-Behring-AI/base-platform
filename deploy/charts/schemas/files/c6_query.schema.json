@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.base.internal/c6_query.schema.json",
+  "title": "C6 — reading provenance back",
+  "description": "agents -> knowledge, on behalf of an audit view. C6's write half lands records; this is the read half, so 'show me everything that produced this output' is answerable without a second arrow out of the interface. Each returned record keeps its own classification.",
+  "$defs": {
+    "query": {
+      "type": "object",
+      "description": "At least one filter. A query with none would make the provenance store the widest read path in the system.",
+      "properties": {
+        "request_id": { "type": "string", "format": "uuid", "description": "The reader's own request, which this read is itself recorded under." },
+        "filter": {
+          "type": "object",
+          "properties": {
+            "about_request_id": { "type": "string", "format": "uuid" },
+            "collection": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+            "record_id": { "type": "string", "minLength": 1 },
+            "since": { "type": "string", "format": "date-time" },
+            "until": { "type": "string", "format": "date-time" }
+          },
+          "minProperties": 1,
+          "dependentRequired": { "record_id": ["collection"] },
+          "additionalProperties": false
+        },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "cursor": { "type": "string" }
+      },
+      "required": ["request_id", "filter", "limit"],
+      "additionalProperties": false
+    },
+    "response": {
+      "type": "object",
+      "properties": {
+        "request_id": { "type": "string", "format": "uuid" },
+        "records": { "type": "array", "items": { "$ref": "https://schemas.base.internal/c6_provenance.schema.json" } },
+        "next_cursor": { "type": "string" }
+      },
+      "required": ["request_id", "records"],
+      "additionalProperties": false
+    }
+  }
+}
