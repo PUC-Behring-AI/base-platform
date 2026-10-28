@@ -1,0 +1,6 @@
+apiVersion: v2
+name: postgres
+description: A small single-replica Postgres for a layer that needs one database
+type: application
+version: 0.9.0-dev
+appVersion: "18"

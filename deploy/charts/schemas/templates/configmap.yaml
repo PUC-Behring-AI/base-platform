@@ -1,0 +1,14 @@
+# files/ is a checked-in copy of the repository's schemas/*.json, because Helm
+# cannot read outside the chart. scripts/sync-chart-schemas.sh rewrites it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.name }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+{{- range $path, $_ := .Files.Glob "files/*.json" }}
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

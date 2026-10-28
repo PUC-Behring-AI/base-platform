@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.base.internal/c5_identity.schema.json",
+  "title": "C5 — identity",
+  "description": "platform -> inference, interface. Provisioning a person crosses two layers; this is why. Each operation below is exposed as its own endpoint by the layer named in its title — nobody calls a neighbour's database instead. See docs/ADR.md ADR-010 for why this contract exists at all.",
+  "$defs": {
+    "issue_credential_request": {
+      "title": "inference: issue a credential",
+      "type": "object",
+      "properties": {
+        "principal_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Opaque identifier for the person or service this credential is for. The inference layer does not resolve this to an identity — that is the interface layer's job, on its own side of this same contract."
+        },
+        "budget": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Spend ceiling, in the currency the deployment bills in."
+        },
+        "rate_limit_rpm": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "allowed_key_policies": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["local-only", "external"] },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Which of the two credential families this principal may ever be issued. A principal who should never reach a third-party provider gets ['local-only'] here — not a runtime check downstream."
+        },
+        "purpose": {
+          "type": "string",
+          "enum": ["chat", "embed"],
+          "description": "Optional, defaults to 'chat'. 'embed' issues the C7 credential: confined to the deployment's embedding models and to the embeddings route, and only ever local-only. The two are issued separately because they are different reaches, not different budgets — a chat credential is never widened into an embedding one, nor the reverse."
+        }
+      },
+      "required": ["principal_id", "budget", "rate_limit_rpm", "allowed_key_policies"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "purpose": { "const": "embed" } }, "required": ["purpose"] },
+          "then": { "properties": { "allowed_key_policies": { "const": ["local-only"] } } }
+        }
+      ]
+    },
+    "issue_credential_response": {
+      "title": "inference: credential issued",
+      "type": "object",
+      "properties": {
+        "credential_id": { "type": "string", "minLength": 1 },
+        "principal_id": { "type": "string", "minLength": 1 },
+        "issued_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["credential_id", "principal_id", "issued_at"],
+      "additionalProperties": false
+    },
+    "revoke_credential_request": {
+      "title": "inference: revoke a credential",
+      "type": "object",
+      "properties": {
+        "credential_id": { "type": "string", "minLength": 1 }
+      },
+      "required": ["credential_id"],
+      "additionalProperties": false
+    },
+    "create_account_request": {
+      "title": "interface: create an account",
+      "type": "object",
+      "properties": {
+        "principal_id": { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string", "minLength": 1 },
+        "password": {
+          "type": "string",
+          "minLength": 8,
+          "description": "Optional. If omitted on first creation, the interface generates one and returns it in create_account_response -- there is no other operation in this contract that issues a login credential, so this is the only time it is ever knowable. Omitted on a call that updates an account which already exists, the password is left untouched."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "admin"],
+          "description": "Optional, defaults to 'user'. Applied only when the account is being created for the first time -- a call that updates an existing account never changes its role."
+        }
+      },
+      "required": ["principal_id", "display_name"],
+      "additionalProperties": false
+    },
+    "create_account_response": {
+      "title": "interface: account created",
+      "type": "object",
+      "properties": {
+        "account_id": { "type": "string", "minLength": 1 },
+        "principal_id": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "password": {
+          "type": "string",
+          "description": "Present only when a credential was just set: generated on first creation if the caller did not supply one, or echoed back when the caller did. Absent when this call updated an existing account without touching its password."
+        }
+      },
+      "required": ["account_id", "principal_id", "created_at"],
+      "additionalProperties": false
+    },
+    "get_account_response": {
+      "title": "interface: account details",
+      "type": "object",
+      "properties": {
+        "account_id": { "type": "string", "minLength": 1 },
+        "principal_id": { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": [
+        "account_id",
+        "principal_id",
+        "display_name",
+        "role"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

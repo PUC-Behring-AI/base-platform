@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.base.internal/c6_provenance.schema.json",
+  "title": "C6 — provenance record",
+  "description": "all -> knowledge. One record per request, per emitting layer. This is classified data, not telemetry: a record describing confidential evidence is itself confidential, stored under the same taxonomy and key policy — see docs/ADR.md ADR-009 for why this is a separate contract from C4 metrics rather than the same one.",
+  "allOf": [
+    { "$ref": "https://schemas.base.internal/envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "request_id": { "type": "string", "format": "uuid" },
+        "emitted_at": { "type": "string", "format": "date-time" },
+        "emitted_by": {
+          "type": "string",
+          "enum": ["knowledge", "inference", "agents", "interface", "platform"]
+        },
+        "classification": {
+          "$ref": "https://schemas.base.internal/classification.schema.json",
+          "description": "Required, not optional — an unclassified provenance record is exactly the gap ADR-009 closes. If the layer emitting this record has no classification to report (a pure metric would not, which is why metrics are C4, not C6), it does not belong on this contract."
+        },
+        "payload": {
+          "type": "object",
+          "description": "What this layer actually did: for knowledge, which passages were returned; for agents, which evidence was used, which model was addressed, and which key policy the request ran under; for inference, which model and credential actually served the request; for interface, which account initiated it. Free-form because it is layer-specific — the envelope and the classification are what the base enforces, not the payload's internal shape."
+        }
+      },
+      "required": ["request_id", "emitted_at", "emitted_by", "classification", "payload"],
+      "additionalProperties": false
+    }
+  ]
+}
