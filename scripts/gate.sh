@@ -32,6 +32,11 @@
 #                                                       SKIPPED in a base-*
 #                                                       repository
 #   - every *.yml / *.yaml file parses               → FAILS if any is invalid
+#   - Helm charts, if deploy/chart or               → FAILS if lint, render or
+#     deploy/charts/<name> exist                        kubeconform fails, or
+#     (helm lint, helm template, kubeconform)           helm/kubeconform is
+#                                                       missing; SKIPPED if no
+#                                                       chart exists
 #   - a Python test suite, if one exists             → FAILS if red or if
 #                                                       pytest is missing,
 #                                                       SKIPPED if there is
@@ -293,8 +298,12 @@ _step "arquivos YAML"
 yaml_files=()
 while IFS= read -r f; do
     yaml_files+=("$f")
+# Os templates de um chart Helm são Go templates, não YAML: ficam de fora aqui
+# e são validados, já renderizados, no passo de charts.
 done < <(find "$TARGET_DIR" \
     -type d \( -name .git -o -name node_modules -o -name .venv \) -prune -o \
+    -path '*/deploy/chart/templates' -prune -o \
+    -path '*/deploy/charts/*/templates' -prune -o \
     -type f \( -name '*.yml' -o -name '*.yaml' \) -print | sort)
 
 if [ "${#yaml_files[@]}" -eq 0 ]; then
@@ -320,6 +329,37 @@ print(f"{len(sys.argv) - 1} arquivo(s) YAML parseiam")
 PY
     [ "$yaml_ok" -eq 0 ] || _fail "um ou mais arquivos YAML não parseiam — veja acima"
     _ok "${#yaml_files[@]} arquivo(s) YAML válidos"
+fi
+
+# ── 3b. Charts Helm, se existirem ────────────────────────────────────────────
+# deploy/chart/ (um chart por repositório) ou deploy/charts/<nome>/ (vários).
+# Renderiza com ci/kind-values.yaml quando houver e valida o resultado contra
+# o schema do Kubernetes: um template que lint aceita pode renderizar um manifesto
+# inválido. Chart presente sem helm ou kubeconform falha, não pula.
+
+_step "charts Helm"
+charts=()
+for _c in "$TARGET_DIR"/deploy/chart "$TARGET_DIR"/deploy/charts/*; do
+    [ -f "$_c/Chart.yaml" ] && charts+=("$_c")
+done
+if [ "${#charts[@]}" -eq 0 ]; then
+    _skip "nenhum chart Helm em deploy/chart ou deploy/charts — nada a renderizar"
+else
+    command -v helm &>/dev/null && command -v kubeconform &>/dev/null \
+        || _fail "há chart Helm mas helm ou kubeconform não estão instalados — brew install helm kubeconform"
+    for _c in "${charts[@]}"; do
+        _rel="${_c#"$TARGET_DIR"/}"
+        _vals=()
+        [ -f "$_c/ci/kind-values.yaml" ] && _vals=(-f "$_c/ci/kind-values.yaml")
+        # ${arr[@]+...}: array vazio com set -u no bash 3.2.
+        _out="$(helm template gate "$_c" ${_vals[@]+"${_vals[@]}"} 2>&1)" \
+            || { echo "$_out" >&2; _fail "helm template falhou em $_rel — veja acima"; }
+        echo "$_out" | kubeconform -strict -ignore-missing-schemas -kubernetes-version 1.36.0 -summary - \
+            || _fail "kubeconform rejeitou o que $_rel renderiza — veja acima"
+        helm lint --strict "$_c" ${_vals[@]+"${_vals[@]}"} \
+            || _fail "helm lint --strict apontou erros em $_rel"
+        _ok "$_rel: helm lint, helm template e kubeconform limpos"
+    done
 fi
 
 # ── 4. Suíte Python, se existir ──────────────────────────────────────────────
