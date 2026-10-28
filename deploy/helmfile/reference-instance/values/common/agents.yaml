@@ -1,0 +1,6 @@
+# The reference instance's one flow (agents/ in this directory) runs a job
+# through knowledge; inference is the engine's fake, so no key is needed.
+instance:
+  enabled: true
+inference:
+  mode: fake

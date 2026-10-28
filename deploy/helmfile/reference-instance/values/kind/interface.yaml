@@ -1,0 +1,6 @@
+image:
+  repository: localhost:5001/base-interface
+  tag: local
+  pullPolicy: Always
+bff:
+  replicas: 1

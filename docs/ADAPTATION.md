@@ -547,3 +547,64 @@ when compose declares any; a container using `envFrom` is reported.
 when two workloads share a name. `field` is one of `workload`, `env`, `ports`,
 `secrets`, `image`. An `ignore` entry without a reason is an error (exit 2): an
 unexplained difference is the drift the check exists to catch.
+
+### The local cluster
+
+`scripts/k8s-up.sh <instance-dir>` brings the five layers up on a one-node
+kind cluster named `base`, and `scripts/k8s-test.sh` tests what came up. The
+base alone runs from `deploy/helmfile/reference-instance`:
+
+    cp deploy/helmfile/reference-instance/.env.example deploy/helmfile/reference-instance/.env
+    # fill every line, e.g. with `openssl rand -hex 24`
+    scripts/k8s-up.sh deploy/helmfile/reference-instance
+    scripts/k8s-test.sh
+    scripts/k8s-down.sh --delete      # the cluster, registry and Gateway removed
+
+The layer charts come from the sibling checkouts,
+`${BASE_ROOT:-..}/base-<layer>/deploy/chart`, as `compose.base.yaml` takes
+the layers; a layer without a chart is named and refused. To run charts from
+other checkouts (a worktree, a branch under review), point `BASE_ROOT` at a
+directory of symbolic links named `base-<layer>`.
+
+An instance directory holds what one deployment decides:
+
+| Path | What |
+|---|---|
+| `.env` | the secret values, `KEY=value`; never committed |
+| `.env.required` | `<VARIABLE> <namespace>...`: refused when unset or empty, then written into Secret `k8s-secrets` of each namespace named |
+| `values/common/<release>.yaml`, `values/kind/<release>.yaml` | Helm values for `interface`, `knowledge`, `agents`, `inference` |
+| `images.txt` | `<image> <context> [<Dockerfile>]`: built for the node's architecture and pushed to the kind registry `localhost:5001` |
+| `configmaps/<namespace>/<name>/` | optional: each directory becomes ConfigMap `<name>`, one key per file (an instance's own schemas, say) |
+
+`deploy/helmfile/helmfile.yaml.gotmpl` holds what every deployment shares:
+`schemas` in each layer namespace, the stores `interface-accounts-db` and
+`inference-db` (base-platform's postgres chart, wired to the Secret key and
+pods each layer documents), then `inference` → `knowledge` → `agents` →
+`interface`. `k8s-up.sh` is idempotent: run on a live cluster it upgrades in
+place, and each migration hook runs once more under its own lock.
+
+The cluster's one entry point is Gateway `base` in namespace `edge`, served by
+cloud-provider-kind, which `k8s-up.sh` starts when it is not running. On
+macOS it runs without sudo with `--enable-lb-port-mapping`: the Gateway's
+proxy container is published on an ephemeral localhost port, which
+`k8s-up.sh` prints. The proxy sits on the kind network, outside the cluster,
+so the interface's edge admits that network's subnet.
+
+`k8s-images.sh` builds every image for the node's architecture and refuses
+one that comes out otherwise, and refuses a public image whose index has no
+variant for it: on an arm64 Mac an amd64-only image would otherwise run
+emulated, or not at all.
+
+kindnet's policy engine lets a new pod's packets through until it has learnt
+the pod's address: measured, a request made the moment a pod in `knowledge`
+started reached the internet, and the same request five seconds later timed
+out. The policies hold after that window, which is why `k8s-test.sh`'s probes
+wait before they ask; a hook Job's first seconds on kind are not covered.
+
+Measured on 2026-10-28 on an Apple Silicon Mac (Docker Desktop with 7.75 GiB,
+kind v0.33.0, Kubernetes 1.36.4), with the layer images already in Docker's
+build cache: `k8s-up.sh` from no cluster took 157 s and `k8s-test.sh` 41 s;
+the harness's containers (the node, the registry, the Gateway's proxy) peaked
+at 2.9 GiB in `docker stats`. Run again on the live cluster, `k8s-up.sh` took
+28 s, upgraded every release to revision 2, and the interface's migration hook
+ran once more and found the schema already at its version.
