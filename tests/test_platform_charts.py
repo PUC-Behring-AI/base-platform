@@ -101,7 +101,7 @@ def test_postgres_workload_wiring() -> None:
     assert container["ports"][0]["containerPort"] == 5432
     assert svc["spec"]["ports"][0]["port"] == 5432
     assert svc["spec"]["ports"][0]["targetPort"] == 5432
-    assert svc["metadata"]["name"] == sts["spec"]["serviceName"] == "t-postgres"
+    assert svc["metadata"]["name"] == sts["spec"]["serviceName"] == "t"
     assert "pg_isready" in container["readinessProbe"]["exec"]["command"]
     (claim,) = sts["spec"]["volumeClaimTemplates"]
     assert claim["spec"]["storageClassName"] == "base-rwo"
@@ -132,3 +132,35 @@ def test_postgres_image_and_mount_overridable() -> None:
 def test_postgres_helm_test_hook() -> None:
     pod = _kind(_render("postgres", *PG), "Pod")
     assert pod["metadata"]["annotations"]["helm.sh/hook"] == "test"
+
+
+@needs_helm
+def test_postgres_name_is_exactly_the_release_name() -> None:
+    for release in ("interface-accounts-db", "my-postgres"):
+        cmd = ["helm", "template", release, str(CHARTS / "postgres")]
+        for value in PG:
+            cmd += ["--set", value]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        assert result.returncode == 0, result.stderr
+        docs = [d for d in yaml.safe_load_all(result.stdout) if d]
+        assert _kind(docs, "Service")["metadata"]["name"] == release
+        assert _kind(docs, "StatefulSet")["metadata"]["name"] == release
+        assert _kind(docs, "NetworkPolicy")["metadata"]["name"] == release
+        assert _kind(docs, "Pod")["metadata"]["name"] == f"{release}-test"
+
+
+@needs_helm
+def test_postgres_pgdata_under_the_volume() -> None:
+    for mount in ("/var/lib/postgresql/data", "/var/lib/postgresql"):
+        docs = _render("postgres", *PG, f"storage.mountPath={mount}")
+        container = _kind(docs, "StatefulSet")["spec"]["template"]["spec"]["containers"][0]
+        env = {e["name"]: e for e in container["env"]}
+        assert env["PGDATA"]["value"] == f"{mount}/pgdata"
+        assert container["volumeMounts"][0]["mountPath"] == mount
+
+
+@needs_helm
+def test_postgres_empty_image_tag_rejected() -> None:
+    result = _helm("postgres", *PG, "image.tag=", "image.digest=")
+    assert result.returncode != 0
+    assert "/image/tag" in result.stderr

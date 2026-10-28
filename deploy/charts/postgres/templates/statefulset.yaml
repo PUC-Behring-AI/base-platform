@@ -27,6 +27,8 @@ spec:
               value: {{ .Values.auth.username | quote }}
             - name: POSTGRES_DB
               value: {{ .Values.auth.database | quote }}
+            - name: PGDATA
+              value: {{ printf "%s/pgdata" (.Values.storage.mountPath | trimSuffix "/") | quote }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
