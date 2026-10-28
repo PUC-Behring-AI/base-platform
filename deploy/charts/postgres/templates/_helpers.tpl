@@ -7,6 +7,11 @@ app.kubernetes.io/name: {{ .Chart.Name }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "postgres.database-selector" -}}
+{{ include "postgres.selector" . }}
+app.kubernetes.io/component: database
+{{- end -}}
+
 {{- define "postgres.image" -}}
 {{- if .Values.image.digest -}}
 {{ .Values.image.repository }}@{{ .Values.image.digest }}

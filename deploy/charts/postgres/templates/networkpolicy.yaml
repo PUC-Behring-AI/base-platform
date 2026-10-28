@@ -1,4 +1,5 @@
-# Default deny for the Postgres pod; DNS out, and ingress only from allowFrom.
+# Default deny for the database pod only; DNS out. Ingress from allowFrom and
+# from this release's own helm test pod.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -8,16 +9,20 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      {{- include "postgres.selector" . | nindent 6 }}
+      {{- include "postgres.database-selector" . | nindent 6 }}
   policyTypes: [Ingress, Egress]
-  {{- with .Values.allowFrom }}
   ingress:
     - from:
+        {{- with .Values.allowFrom }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        - podSelector:
+            matchLabels:
+              {{- include "postgres.selector" . | nindent 14 }}
+              app.kubernetes.io/component: test
       ports:
         - port: 5432
           protocol: TCP
-  {{- end }}
   egress:
     - to:
         - namespaceSelector: {}

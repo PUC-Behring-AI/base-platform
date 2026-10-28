@@ -77,15 +77,51 @@ def test_postgres_policy_allows_only_listed() -> None:
     policy = _kind(docs, "NetworkPolicy")
     assert policy["spec"]["policyTypes"] == ["Ingress", "Egress"]
     ports = [{"port": 5432, "protocol": "TCP"}]
-    assert policy["spec"]["ingress"] == [{"from": [peer], "ports": ports}]
+    assert policy["spec"]["ingress"] == [{"from": [peer, _test_peer()], "ports": ports}]
     egress = policy["spec"]["egress"]
     assert [p["port"] for rule in egress for p in rule["ports"]] == [53, 53]
 
 
 @needs_helm
-def test_postgres_empty_allow_list_denies_ingress() -> None:
+def test_postgres_empty_allow_list_admits_only_the_test_pod() -> None:
     policy = _kind(_render("postgres", *PG), "NetworkPolicy")
-    assert "ingress" not in policy["spec"]
+    (rule,) = policy["spec"]["ingress"]
+    assert rule["from"] == [_test_peer()]
+
+
+def _test_peer() -> dict[str, Any]:
+    labels = {
+        "app.kubernetes.io/name": "postgres",
+        "app.kubernetes.io/instance": "t",
+        "app.kubernetes.io/component": "test",
+    }
+    return {"podSelector": {"matchLabels": labels}}
+
+
+def _matches(selector: dict[str, str], labels: dict[str, str]) -> bool:
+    return all(labels.get(k) == v for k, v in selector.items())
+
+
+@needs_helm
+def test_postgres_policy_selects_database_not_test_pod() -> None:
+    docs = _render("postgres", *PG)
+    selector = _kind(docs, "NetworkPolicy")["spec"]["podSelector"]["matchLabels"]
+    db_labels = _kind(docs, "StatefulSet")["spec"]["template"]["metadata"]["labels"]
+    test_labels = _kind(docs, "Pod")["metadata"]["labels"]
+    assert _matches(selector, db_labels)
+    assert not _matches(selector, test_labels)
+    svc_selector = _kind(docs, "Service")["spec"]["selector"]
+    assert _matches(svc_selector, db_labels)
+    assert not _matches(svc_selector, test_labels)
+
+
+@needs_helm
+def test_postgres_policy_admits_the_test_pod_on_5432() -> None:
+    docs = _render("postgres", *PG)
+    (rule,) = _kind(docs, "NetworkPolicy")["spec"]["ingress"]
+    test_labels = _kind(docs, "Pod")["metadata"]["labels"]
+    assert any(_matches(p["podSelector"]["matchLabels"], test_labels) for p in rule["from"])
+    assert rule["ports"] == [{"port": 5432, "protocol": "TCP"}]
 
 
 @needs_helm
