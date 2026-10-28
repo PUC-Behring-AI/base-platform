@@ -551,13 +551,13 @@ unexplained difference is the drift the check exists to catch.
 ### The local cluster
 
 `scripts/k8s-up.sh <instance-dir>` brings the five layers up on a one-node
-kind cluster named `base`, and `scripts/k8s-test.sh` tests what came up. The
+kind cluster named `base`, and `scripts/k8s-test.sh <instance-dir>` tests what came up. The
 base alone runs from `deploy/helmfile/reference-instance`:
 
     cp deploy/helmfile/reference-instance/.env.example deploy/helmfile/reference-instance/.env
     # fill every line, e.g. with `openssl rand -hex 24`
     scripts/k8s-up.sh deploy/helmfile/reference-instance
-    scripts/k8s-test.sh
+    scripts/k8s-test.sh deploy/helmfile/reference-instance
     scripts/k8s-down.sh --delete      # the cluster, registry and Gateway removed
 
 The layer charts come from the sibling checkouts,
@@ -575,6 +575,65 @@ An instance directory holds what one deployment decides:
 | `values/common/<release>.yaml`, `values/kind/<release>.yaml` | Helm values for `interface`, `knowledge`, `agents`, `inference` |
 | `images.txt` | `<image> <context> [<Dockerfile>]`: built for the node's architecture and pushed to the kind registry `localhost:5001` |
 | `configmaps/<namespace>/<name>/` | optional: each directory becomes ConfigMap `<name>`, one key per file (an instance's own schemas, say) |
+| `releases.yaml` | optional: the instance's own releases, each from a base chart the helmfile allows (below) |
+| `system-test.yaml` | the flows `k8s-test.sh` runs through the Gateway, and an optional knowledge search (below) |
+
+**An instance's own releases.** A store that only the instance's module
+uses (a vector store for knowledge, say) is a release of a base chart that
+the base's helmfile does not list. `<instance-dir>/releases.yaml` adds it:
+
+    releases:
+      - name: knowledge-store
+        namespace: knowledge            # one of the five namespaces
+        chart: postgres                 # the allow-list: postgres
+        values: [values/common/knowledge-store.yaml]   # relative to the instance dir
+        needs: []                       # optional, as helmfile: <namespace>/<release>
+        neededBy: [knowledge]           # optional: the layers installed after it
+
+Each release is installed after its namespace's `schemas` and before every
+layer in its `neededBy`, so one cold `k8s-up.sh` brings the whole instance
+up. A chart off the allow-list, an unknown key, a namespace or layer that
+does not exist, a name the base already uses, or a missing values file is
+refused before the cluster is touched. The chart is the base's, by its
+short name, so its version moves with the base pin; the reference instance
+declares `knowledge-store` as the example.
+
+**Pushing images before the images step.** The registry `localhost:5001`
+is started by `scripts/k8s-registry.sh`, idempotently, and `k8s-up.sh` runs
+it before it creates the cluster. An instance whose build scripts push to a
+registry runs it first, builds with `--push localhost:5001`, and lists in
+`images.txt` only what it still builds from a Dockerfile; every image the
+releases name is checked for the node's architecture either way.
+
+    scripts/k8s-registry.sh
+    ../<socket>/scripts/build.sh --push localhost:5001
+    scripts/k8s-up.sh <instance-dir>
+
+**The instance's system test.** `k8s-test.sh <instance-dir>` checks that
+every workload is ready, creates an account with the operator command (C5)
+and logs in through the Gateway, then runs the steps of
+`<instance-dir>/system-test.yaml` in one session; its policy probes follow.
+`scripts/k8s_system_test.py` documents every key:
+
+    schemas: [../schemas/c3]            # optional: the instance's own JSON Schemas
+    steps:
+      - flow: notes-create              # POST /api/v1/flows/<flow>
+        input: {title: System test}     # or input_file: <JSON or YAML file>
+        status: 200                     # 200: a C3 response; 202: a job, polled until it succeeds
+        body_schema: https://schemas.example.internal/c3/notes.schema.json#/$defs/note
+        outcome: answered               # optional
+        save: {note: body.note_id}      # ${note} in a later step's input
+      - flow: notes-summarize
+        input: {note_id: "${note}"}
+        status: 202
+    knowledge_search:                   # optional: C1 from a pod in namespace agents
+      query: some words
+      limit: 3
+      min_passages: 1
+
+Every answer validates against the C3 envelope; a key the file does not
+know is refused, so a typo never turns a check off. The reference instance
+runs `echo` and a knowledge search that may return no passage.
 
 `deploy/helmfile/helmfile.yaml.gotmpl` holds what every deployment shares:
 `schemas` in each layer namespace, the stores `interface-accounts-db` and

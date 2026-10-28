@@ -16,12 +16,18 @@
 #   values/common/<release>.yaml, values/kind/<release>.yaml
 #                           helm values per release (deploy/helmfile)
 #   images.txt              the images to build (scripts/k8s-images.sh)
+#   releases.yaml           optional: the instance's own releases, from the
+#                           base charts the helmfile allows
 #   configmaps/<namespace>/<name>/   optional: each directory becomes
 #                           ConfigMap <name> in <namespace>, one key per file
 #
 # The layer charts come from the sibling checkouts, as compose.base.yaml takes
 # the layers: ${BASE_ROOT:-..}/base-<layer>/deploy/chart. A layer without a
 # chart is named and refused; the harness never fakes a layer.
+#
+# The registry (localhost:5001) is started before the cluster, by
+# scripts/k8s-registry.sh, which an instance may also run first to push its
+# images there before this script's images step.
 #
 # Every step is idempotent: run it again on a live cluster and it upgrades in
 # place (each chart's migration hook runs once more, under its own lock).
@@ -35,10 +41,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLUSTER=base
 CONTEXT="kind-$CLUSTER"
+# Started by scripts/k8s-registry.sh, which names the same two.
 REGISTRY=kind-registry
 REGISTRY_PORT=5001
-# registry:3, digest checked with `docker buildx imagetools inspect` on 2026-10-28.
-REGISTRY_IMAGE=registry@sha256:d4032d4cc323c1731c707931ecada07a53076eac38e3b61ae57533f170f2c6c3
 # Gateway API v1, the standard channel; cloud-provider-kind v0.12.0 conforms to v1.6.1.
 GATEWAY_API_URL=https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml
 GATEWAY_API_SHA256=24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063a73  # gitleaks:allow published release checksum, not a secret
@@ -108,14 +113,19 @@ for tool in kind kubectl helm helmfile docker cloud-provider-kind curl shasum; d
     command -v "$tool" >/dev/null || die "$tool is not installed"
 done
 
+# The releases, the instance's own (releases.yaml) among them, read before any
+# cluster exists: a chart off the allow-list is refused here. `list` renders
+# only the release list; the subnet the interface's values need is unknown
+# until the cluster exists, so a documentation address (TEST-NET-1) stands in.
+step "releases"
+K8S_INSTANCE_DIR="$INSTANCE" KIND_NETWORK_CIDR=192.0.2.0/24 \
+    helmfile -f "$ROOT/deploy/helmfile/helmfile.yaml.gotmpl" -e kind list >/dev/null ||
+    die "the helmfile does not render with $INSTANCE (above)"
+
 # ── 2. The cluster and its registry ─────────────────────────────────────────
 
-step "registry $REGISTRY on localhost:$REGISTRY_PORT"
-if [ "$(docker inspect -f '{{.State.Running}}' "$REGISTRY" 2>/dev/null || true)" != true ]; then
-    docker rm -f "$REGISTRY" >/dev/null 2>&1 || true
-    docker run -d --restart=always -p "127.0.0.1:$REGISTRY_PORT:5000" --network bridge \
-        --name "$REGISTRY" "$REGISTRY_IMAGE" >/dev/null
-fi
+step "registry"
+"$ROOT/scripts/k8s-registry.sh"
 
 step "cluster $CLUSTER"
 if ! kind get clusters | grep -qx "$CLUSTER"; then
