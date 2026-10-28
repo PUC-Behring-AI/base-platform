@@ -25,8 +25,15 @@ SECRET_VALUE = re.compile(r"^\$\{[A-Za-z_][A-Za-z0-9_]*:[?-]")
 DIGEST = re.compile(r"@(sha256:[0-9a-f]+)")
 
 
+FIELDS = {"workload", "env", "ports", "secrets", "image"}
+
+
 class InputError(Exception):
     pass
+
+
+def _is_secret(name: str, value: str | None) -> bool:
+    return bool(SECRET_NAME.search(name) and SECRET_VALUE.match(value or ""))
 
 
 def _load_all(path: str) -> list:
@@ -55,43 +62,73 @@ def _compose_env(service: dict) -> dict[str, str | None]:
     return out
 
 
-def _compose_ports(service: dict) -> set[int]:
-    ports = {int(str(p).split("/")[0]) for p in service.get("expose") or []}
+def _port(value: object, svc: str) -> int:
+    try:
+        return int(str(value).split("/")[0])
+    except ValueError:
+        raise InputError(
+            f"compose service {svc}: cannot read port {value!r} (ranges and ${{VARS}} unsupported)"
+        ) from None
+
+
+def _compose_ports(service: dict, svc: str) -> set[int]:
+    ports = {_port(p, svc) for p in service.get("expose") or []}
     for p in service.get("ports") or []:
         if isinstance(p, dict):
-            ports.add(int(p["target"]))
+            ports.add(_port(p["target"], svc))
         else:
-            ports.add(int(str(p).split("/")[0].split(":")[-1]))
+            ports.add(_port(str(p).split("/")[0].split(":")[-1], svc))
     return ports
 
 
 def _chart_view(workload: dict) -> dict:
-    containers = workload["spec"]["template"]["spec"].get("containers") or []
+    name = workload["metadata"]["name"]
+    try:
+        containers = workload["spec"]["template"]["spec"].get("containers") or []
+    except (KeyError, TypeError, AttributeError):
+        raise InputError(f"rendered {workload['kind']} {name}: no spec.template.spec") from None
     env: dict[str, bool] = {}  # name -> fed by secretKeyRef
     ports: set[int] = set()
     images: list[str] = []
+    env_from = False
     for c in containers:
+        env_from = env_from or bool(c.get("envFrom"))
         for e in c.get("env") or []:
             ref = (e.get("valueFrom") or {}).get("secretKeyRef")
             env[e["name"]] = bool(ref)
         ports.update(int(p["containerPort"]) for p in c.get("ports") or [])
         images.append(c.get("image", ""))
-    return {"env": env, "ports": ports, "images": images}
+    return {"env": env, "ports": ports, "images": images, "env_from": env_from}
 
 
 def _find_workload(rendered: list, name: str, kind: str | None) -> dict | None:
     for doc in rendered:
-        if doc.get("kind") not in WORKLOADS or doc["metadata"]["name"] != name:
+        if doc.get("kind") not in WORKLOADS or doc.get("metadata", {}).get("name") != name:
             continue
         if kind is None or doc["kind"] == kind:
             return doc
     return None
 
 
+def _check_map(mapping: dict) -> None:
+    services = mapping.get("services") or {}
+    if not isinstance(services, dict):
+        raise InputError("map: services must be a mapping")
+    for svc, entry in services.items():
+        if not isinstance(entry, dict) or not entry.get("workload"):
+            raise InputError(f"map: services.{svc} needs a workload")
+    if not isinstance(mapping.get("ignore") or [], list):
+        raise InputError("map: ignore must be a list")
+
+
 def _check_ignores(entries: list) -> set[tuple[str, str]]:
     ignored = set()
     for entry in entries:
+        if not isinstance(entry, dict):
+            raise InputError(f"map: ignore entry {entry!r} must be a mapping")
         label = f"service {entry.get('service')} field {entry.get('field')}"
+        if entry.get("field") is not None and entry["field"] not in FIELDS:
+            raise InputError(f"ignore entry ({label}): field must be one of {sorted(FIELDS)}")
         if not entry.get("service") or not entry.get("field"):
             raise InputError(f"ignore entry ({label}): service and field are required")
         if not str(entry.get("reason") or "").strip():
@@ -101,6 +138,7 @@ def _check_ignores(entries: list) -> set[tuple[str, str]]:
 
 
 def compare(compose: dict, rendered: list, mapping: dict) -> list[str]:
+    _check_map(mapping)
     mapped = mapping.get("services") or {}
     ignored = _check_ignores(mapping.get("ignore") or [])
     lines: list[str] = []
@@ -122,14 +160,16 @@ def compare(compose: dict, rendered: list, mapping: dict) -> list[str]:
             report(svc, "workload", "workload", "present", "absent")
             continue
         spec, chart = services[svc], _chart_view(workload)
+        if chart["env_from"]:
+            if (svc, "env") not in ignored:
+                lines.append(f"service {svc}: envFrom chart=present (declare each variable in env)")
         env = _compose_env(spec)
         for name, value in env.items():
             if name not in chart["env"]:
                 report(svc, "env", f"env {name}", "present", "absent")
-            elif SECRET_NAME.search(name) and SECRET_VALUE.match(value or "") \
-                    and not chart["env"][name]:  # fmt: skip
+            elif _is_secret(name, value) and not chart["env"][name]:
                 report(svc, "secrets", f"secret {name}", "secret", "plain")
-        cports = _compose_ports(spec)
+        cports = _compose_ports(spec, svc)
         if cports:
             for p in sorted(cports - chart["ports"]):
                 report(svc, "ports", f"port {p}", "present", "absent")

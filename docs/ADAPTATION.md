@@ -458,8 +458,7 @@ Compose stays the development loop. Each layer also ships a Helm chart, so the
 same five layers can run on a cluster. The chart is hand-written, not generated
 from compose: compose has no notion of a hook, a policy or a storage class, and
 a converter would hide those choices. A parity check keeps the two in step
-instead. This section is numbered after §9 so that §5–§9 keep the numbers other
-documents cite; it belongs with §4 in spirit.
+instead.
 
 ### Layout, per layer
 
@@ -513,6 +512,11 @@ change in the repository.
    The base cannot know where it runs. Managed-cluster identity (EKS Pod
    Identity) lives outside the chart, in the instance.
 
+9. **Every variable is declared explicitly in `env`; `envFrom` is not
+   allowed.** Secrets use `valueFrom.secretKeyRef`. The parity check can only
+   compare names it can see, and `envFrom` hides them behind a Secret or
+   ConfigMap it never reads.
+
 ### The parity check
 
 `scripts/chart_parity.py` compares a layer's compose file with the rendered
@@ -528,7 +532,10 @@ values), container ports (`expose`/`ports` target against `containerPort`),
 secrets (a password-, key-, secret- or token-named variable fed by `${X:?}` or
 `${X:-}` in compose must be a `secretKeyRef` in the chart) and, when compose
 pins an image digest, that the chart's image carries the same digest. A compose
-service with `profiles:` is skipped unless `parity.yaml` lists it.
+service with `profiles:` is skipped unless `parity.yaml` lists it. Only a
+workload's `containers` are compared, not its `initContainers`. Env is checked
+from compose to chart (the chart may carry more), ports in both directions
+when compose declares any; a container using `envFrom` is reported.
 
     services:            # compose service -> chart workload
       bff: {workload: bff}

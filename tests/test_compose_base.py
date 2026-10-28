@@ -124,9 +124,7 @@ class TestInterfaceNetworks:
     reason as base-internal."""
 
     @pytest.mark.parametrize("network", ["interface-agents", "interface-metrics"])
-    def test_every_declaration_is_the_same(
-        self, fragments: dict[str, dict], network: str
-    ) -> None:
+    def test_every_declaration_is_the_same(self, fragments: dict[str, dict], network: str) -> None:
         declared = {
             name: (fragment.get("networks") or {})[network]
             for name, fragment in fragments.items()
