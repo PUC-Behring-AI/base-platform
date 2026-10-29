@@ -19,6 +19,17 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **An instance's own releases on the kind harness** (#91): an optional `<instance-dir>/releases.yaml` adds releases of base charts on the helmfile's allow-list (`postgres`), each installed after its namespace's `schemas` and before the layers it names in `neededBy`, so one cold `scripts/k8s-up.sh` brings the instance up. A chart off the list, an unknown key, a bad name or `needs`, or a missing values file is refused before the cluster is touched. The reference instance declares `knowledge-store` as the example.
+- **`scripts/k8s-registry.sh`** (#92): starts the kind registry `localhost:5001` idempotently; `k8s-up.sh` runs it before the cluster, and an instance may run it first and build with `--push localhost:5001`.
+- **An instance's system test** (#93): `<instance-dir>/system-test.yaml` lists the flows `scripts/k8s-test.sh` runs through the Gateway (input, expected status, body schema, outcome, saved values, job timeout) and an optional C1 knowledge search; `scripts/k8s_system_test.py` reads and runs it. The reference instance keeps `echo`.
+
+### Changed
+
+- **`BREAKING`: `scripts/k8s-test.sh` takes `<instance-dir>`, which must hold a `system-test.yaml`** (#93). An instance that ran it with no argument adds the file (the reference instance's is the minimal example) and passes its directory.
+- The reference instance's `.env.required` gains `KNOWLEDGE_STORE_PASSWORD` (namespace `knowledge`), for `knowledge-store`: an existing `deploy/helmfile/reference-instance/.env` needs the line. Not `BREAKING`: it concerns only running the base alone, not an instance.
+
 ## [0.9.0] — 2026-10-29
 
 ### Added
