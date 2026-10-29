@@ -19,6 +19,8 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-10-29
+
 ### Added
 
 - **Terraform modules for a managed EKS Auto Mode cluster** (#86): `deploy/terraform/persistent` and `deploy/terraform/cluster`, each called by an instance from a root of its own (separate state). Nothing here installs an application: helmfile does, on EKS as on kind. `docs/ADAPTATION.md` §10 gains *The managed cluster*; `deploy/terraform/README.md` has the interface, the provider block and the pinned versions.
