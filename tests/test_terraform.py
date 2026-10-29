@@ -44,7 +44,7 @@ def test_fmt(tmp_path: Path) -> None:
 
 @needs_terraform
 @pytest.mark.parametrize("module", MODULES)
-def test_init_and_validate(module: str, tmp_path: Path) -> None:
+def test_init_validate_and_test(module: str, tmp_path: Path) -> None:
     cwd = TERRAFORM / module
     init = _terraform(
         ["init", "-backend=false", "-input=false", "-lockfile=readonly", "-no-color"],
@@ -54,6 +54,10 @@ def test_init_and_validate(module: str, tmp_path: Path) -> None:
     assert init.returncode == 0, init.stdout + init.stderr
     validate = _terraform(["validate", "-no-color"], cwd, tmp_path)
     assert validate.returncode == 0, validate.stdout + validate.stderr
+    # tests/*.tftest.hcl render the manifests with every provider mocked.
+    if (cwd / "tests").is_dir():
+        test = _terraform(["test", "-no-color"], cwd, tmp_path)
+        assert test.returncode == 0, test.stdout + test.stderr
 
 
 @pytest.mark.parametrize("module", MODULES)

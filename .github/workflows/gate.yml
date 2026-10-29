@@ -89,7 +89,7 @@ jobs:
           unzip -o -q "$RUNNER_TEMP/terraform.zip" terraform -d "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Check the Terraform modules (fmt, init without backend, validate)
+      - name: Check the Terraform modules (fmt, init without backend, validate, test)
         env:
           TF_IN_AUTOMATION: "1"
         run: |
@@ -101,6 +101,10 @@ jobs:
               terraform -chdir="$module" init -backend=false -input=false -lockfile=readonly
             TF_DATA_DIR="$RUNNER_TEMP/tf-$(basename "$module")" \
               terraform -chdir="$module" validate
+            if [ -d "$module/tests" ]; then
+              TF_DATA_DIR="$RUNNER_TEMP/tf-$(basename "$module")" \
+                terraform -chdir="$module" test
+            fi
           done
 
       - name: Run the shared gate

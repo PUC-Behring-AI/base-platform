@@ -167,15 +167,39 @@ resource "kubectl_manifest" "network_policy" {
   depends_on = [module.eks]
 }
 
+# The ALB behind a Gateway is internal unless told otherwise (the AWS Load
+# Balancer Controller's LoadBalancerConfiguration default, whose resource
+# Auto Mode reuses). Attached to the GatewayClass, so it holds for every
+# Gateway of the class; kube-system, because it exists in every cluster and
+# no chart owns it.
+resource "kubectl_manifest" "gateway_lb_config" {
+  yaml_body = yamlencode({
+    apiVersion = "gateway.k8s.aws/v1"
+    kind       = "LoadBalancerConfiguration"
+    metadata   = { name = local.gateway_class, namespace = "kube-system" }
+    spec       = { scheme = var.gateway_scheme }
+  })
+
+  depends_on = [terraform_data.gateway_api]
+}
+
 resource "kubectl_manifest" "gateway_class" {
   yaml_body = yamlencode({
     apiVersion = "gateway.networking.k8s.io/v1"
     kind       = "GatewayClass"
     metadata   = { name = local.gateway_class }
-    spec       = { controllerName = "eks.amazonaws.com/gateway-alb" }
+    spec = {
+      controllerName = "eks.amazonaws.com/gateway-alb"
+      parametersRef = {
+        group     = "gateway.k8s.aws"
+        kind      = "LoadBalancerConfiguration"
+        name      = local.gateway_class
+        namespace = "kube-system"
+      }
+    }
   })
 
-  depends_on = [terraform_data.gateway_api]
+  depends_on = [kubectl_manifest.gateway_lb_config]
 }
 
 # The NodeClass both pools use, in place of Auto Mode's `default`: the same
