@@ -57,7 +57,7 @@ environments:
 {{- $layers := list "interface" "agents" "knowledge" "inference" }}
 {{- $namespaces := list "interface" "agents" "knowledge" "inference" "edge" }}
 {{- $charts := dict "postgres" "../charts/postgres" }}
-{{- $baseReleases := list "schemas" "interface-accounts-db" "inference-db" "inference" "knowledge" "agents" "interface" }}
+{{- $baseReleases := list "schemas" "interface-accounts-db" "inference-db" "inference" "knowledge" "agents" "interface" "gateway" }}
 {{- $fields := list "name" "namespace" "chart" "values" "needs" "neededBy" }}
 {{- $extra := list }}
 {{- $overlay := dict }}
@@ -66,6 +66,18 @@ environments:
 {{- $file := printf "%s/eks/.generated/%s.yaml" $instance . }}
 {{- if isFile $file }}{{ $_ := set $overlay . $file }}{{ end }}
 {{- end }}
+{{- /* The interface's edge admits only edge.allowFrom, default none: on eks
+     nothing adds the load balancer's source, so an empty list would sync
+     green and serve nothing. The last file that sets it wins, as in helm. */}}
+{{- $allowFrom := list }}
+{{- range compact (list (printf "%s/values/common/interface.yaml" $instance) (printf "%s/values/eks/interface.yaml" $instance) (index $overlay "interface" | default "")) }}
+{{- if isFile . }}
+{{- $doc := readFile . | fromYaml }}
+{{- $edge := and (kindIs "map" $doc) (hasKey $doc "edge") | ternary (index $doc "edge") nil }}
+{{- if and (kindIs "map" $edge) (hasKey $edge "allowFrom") }}{{ $allowFrom = index $edge "allowFrom" }}{{ end }}
+{{- end }}
+{{- end }}
+{{- if not $allowFrom }}{{ fail (printf "eks: no edge.allowFrom in %s/values/{common,eks}/interface.yaml: the Gateway's load balancer could not reach the interface; name its source (the VPC's CIDR) there" $instance) }}{{ end }}
 {{- end }}
 {{- $releasesFile := printf "%s/releases.yaml" $instance }}
 {{- if isFile $releasesFile }}
