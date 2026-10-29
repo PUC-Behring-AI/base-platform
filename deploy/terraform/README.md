@@ -51,6 +51,7 @@ it stays silent exactly when it should warn.
 | `vpc_id` | string | `null` → the region's default VPC |
 | `subnet_ids` | list(string) | `[]` → the default VPC's public subnets outside `excluded_zone_ids`; give with `vpc_id` |
 | `excluded_zone_ids` | list(string) | the zone ids where EKS refuses a control plane |
+| `gateway_scheme` | string | `"internet-facing"` — or `"internal"` |
 | `cpu_pool_cpu_limit` | number | `32` |
 | `cpu_pool_consolidation` | string | `"WhenEmpty"` — or `"WhenEmptyOrUnderutilized"` |
 | `gpu_node_pool` | bool | `false` |
@@ -130,7 +131,16 @@ must also export credentials for that role before `apply`.
   every NetworkPolicy and enforces none. Applied server-side, so it works
   whether or not the ConfigMap already exists.
 - **Gateway API**: GatewayClass `base-alb`, controller
-  `eks.amazonaws.com/gateway-alb` (one ALB per Gateway). The cluster setting
+  `eks.amazonaws.com/gateway-alb` (one ALB per Gateway), whose
+  `parametersRef` points at LoadBalancerConfiguration `kube-system/base-alb`
+  (`gateway.k8s.aws/v1`) with `scheme: <gateway_scheme>`, internet-facing by
+  default. Without it the ALB is internal, the controller's default, and a
+  browser outside the VPC cannot reach the edge. Sources: Auto Mode reuses
+  the AWS Load Balancer Controller's `LoadBalancerConfiguration` "at the
+  Gateway or GatewayClass level"
+  (https://docs.aws.amazon.com/eks/latest/userguide/auto-configure-gateway-api.html);
+  `scheme`, default `internal`
+  (https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/gateway/loadbalancerconfig/). The cluster setting
   that turns the Gateway API on (`elasticLoadBalancing.gatewayApi.crds.managed`,
   AWS owning the CRDs at Gateway API v1) has no argument in the aws provider
   yet, so `enable-gateway-api.sh` calls `aws eks update-cluster-config` once
@@ -200,6 +210,12 @@ refuses (network-reqs).
   StorageClass. It is the self-managed EBS CSI driver's parameter; the Auto
   Mode StorageClass page does not list it. If ignored, volumes are untagged
   and the cost report cannot attribute them.
+- That Auto Mode installs the `gateway.k8s.aws` CRDs (LoadBalancerConfiguration)
+  when the Gateway API is on with managed CRDs; if not, its apply fails with
+  "no matches for kind". And that Auto Mode honours a GatewayClass-level
+  `parametersRef` with a `namespace` (the AWS page says GatewayClass level;
+  its examples attach at the Gateway). If either fails, the edge Gateway's
+  `infrastructure.parametersRef` is the fallback, in the instance.
 - Two risks of `enable-gateway-api.sh`: (1) that `describe-cluster` prints
   `True` for the managed setting under `--output text` (if it prints
   something else, the script calls `update-cluster-config` again, which EKS
@@ -212,7 +228,9 @@ refuses (network-reqs).
 ## Checks
 
 `tests/test_terraform.py` runs `terraform fmt -check`, and per module
-`terraform init -backend=false -lockfile=readonly` and `terraform validate`,
+`terraform init -backend=false -lockfile=readonly`, `terraform validate` and
+`terraform test` (cluster/tests renders the GatewayClass and its
+LoadBalancerConfiguration with every provider mocked: no AWS, no cluster),
 and refuses an account id, a region outside a variable default, or an
 instance name in these files. The gate workflow installs a pinned Terraform
 for it.

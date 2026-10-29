@@ -43,6 +43,17 @@ variable "control_plane_log_retention_days" {
   default     = 7
 }
 
+variable "gateway_scheme" {
+  description = "Scheme of the load balancer behind every Gateway of class base-alb. The controller's own default is internal, which a browser outside the VPC cannot reach."
+  type        = string
+  default     = "internet-facing"
+
+  validation {
+    condition     = contains(["internet-facing", "internal"], var.gateway_scheme)
+    error_message = "gateway_scheme must be internet-facing or internal."
+  }
+}
+
 variable "vpc_id" {
   description = "VPC of the cluster. Null means the region's default VPC."
   type        = string
