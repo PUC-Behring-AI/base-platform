@@ -653,11 +653,24 @@ pods each layer documents), then `inference` → `knowledge` → `agents` →
 place, and each migration hook runs once more under its own lock.
 
 The cluster's one entry point is Gateway `base` in namespace `edge`, served by
-cloud-provider-kind, which `k8s-up.sh` starts when it is not running. On
-macOS it runs without sudo with `--enable-lb-port-mapping`: the Gateway's
-proxy container is published on an ephemeral localhost port, which
-`k8s-up.sh` prints. The proxy sits on the kind network, outside the cluster,
-so the interface's edge admits that network's subnet.
+cloud-provider-kind, which `k8s-up.sh` starts when it is not running. It runs
+without sudo with `--enable-lb-port-mapping`: the Gateway's proxy container
+is published on an ephemeral localhost port, which `k8s-up.sh` prints. The
+proxy sits on the kind network, outside the cluster, so the interface's edge
+admits that network's subnet.
+
+cloud-provider-kind runs as container `kind-cloud-provider` on the kind
+network (its v0.12.0 image, pinned by digest in `k8s-up.sh`, with the Docker
+socket mounted), not as a host process, so the harness needs no traffic from
+a container to the host. The proxy gets its routes from cloud-provider-kind's
+xDS server, which listens on the first network address of wherever
+cloud-provider-kind runs; run on the Mac itself that is the LAN address, and
+on 2026-10-29 a Mac whose containers could no longer reach its own LAN
+address (with or without a VPN) left the proxy without configuration and
+reset every request through the Gateway (base-platform#101). On the kind
+network that address is a peer of the proxy's. `k8s-up.sh` refuses to start
+when cloud-provider-kind already runs outside its container, since two would
+race for the same Gateways; `k8s-down.sh --delete` removes the container.
 
 `k8s-images.sh` builds every image for the node's architecture and refuses
 one that comes out otherwise, and refuses a public image whose index has no
@@ -682,8 +695,8 @@ ran once more and found the schema already at its version.
 
 The same test runs in CI: `.github/workflows/system-kind.yml`, a reusable
 workflow, checks out the five base repositories side by side at `base_ref`,
-installs kind, helm, helmfile, kubeconform and cloud-provider-kind pinned by
-sha256, then runs `k8s-up.sh` and `k8s-test.sh` on the instance directory; on
+installs kind, helm, helmfile and kubeconform pinned by sha256, then runs
+`k8s-up.sh` and `k8s-test.sh` on the instance directory; on
 failure it uploads `kubectl get all -A`, the events, and the describe and logs
 of every pod not ready as the artifact `cluster-state`. An instance calls it
 from its own workflow:

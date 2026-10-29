@@ -18,7 +18,10 @@
 set -euo pipefail
 
 CONTEXT=kind-base
-# Where k8s-up.sh keeps cloud-provider-kind's log and pidfile.
+# cloud-provider-kind's container, as k8s-up.sh names it.
+CPK=kind-cloud-provider
+# Where an earlier k8s-up.sh, which ran cloud-provider-kind as a host
+# process, kept its pidfile.
 STATE="${XDG_CACHE_HOME:-$HOME/.cache}/base-kind"
 
 die() { echo "k8s-down: $*" >&2; exit 1; }
@@ -47,13 +50,18 @@ if [ "$delete" -eq 1 ]; then
         docker rm -f kind-registry >/dev/null
         echo "removed the registry kind-registry"
     fi
+    # cloud-provider-kind first, so it starts no proxy while they go.
+    if docker inspect "$CPK" >/dev/null 2>&1; then
+        docker rm -f "$CPK" >/dev/null
+        echo "removed cloud-provider-kind, container $CPK"
+    fi
     # The Gateway's proxies are containers cloud-provider-kind started.
     for proxy in $(docker ps -aq --filter label=io.x-k8s.cloud-provider-kind.cluster=base); do
         docker rm -f "$proxy" >/dev/null
         echo "removed the Gateway proxy $proxy"
     done
-    # Only the instance k8s-up.sh started (its pidfile): one started by
-    # hand, perhaps for another cluster, is left running.
+    # A host process an earlier k8s-up.sh started (its pidfile): one started
+    # by hand, perhaps for another cluster, is left running.
     pidfile="$STATE/cloud-provider-kind.pid"
     if [ -f "$pidfile" ]; then
         pid="$(cat "$pidfile")"

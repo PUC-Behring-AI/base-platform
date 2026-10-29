@@ -32,9 +32,10 @@
 # Every step is idempotent: run it again on a live cluster and it upgrades in
 # place (each chart's migration hook runs once more, under its own lock).
 #
-# cloud-provider-kind runs the Gateway; it is started here when not running.
-# On macOS its default mode wants sudo; with --enable-lb-port-mapping it does
-# not, and the Gateway is published on an ephemeral localhost port instead.
+# cloud-provider-kind runs the Gateway, as container kind-cloud-provider on
+# the kind network, started here when not running. Its Gateway proxies dial
+# it there, never the host (base-platform#101). With --enable-lb-port-mapping
+# the Gateway is published on an ephemeral localhost port.
 
 set -euo pipefail
 
@@ -49,8 +50,10 @@ GATEWAY_API_URL=https://github.com/kubernetes-sigs/gateway-api/releases/download
 GATEWAY_API_SHA256=24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063a73  # gitleaks:allow published release checksum, not a secret
 NAMESPACES="interface agents knowledge inference edge"
 LAYERS="interface knowledge agents inference"
-# cloud-provider-kind's log and pidfile, when this harness starts it.
-STATE="${XDG_CACHE_HOME:-$HOME/.cache}/base-kind"
+# cloud-provider-kind v0.12.0, the index for linux/amd64 and linux/arm64,
+# digest checked with `docker buildx imagetools inspect` on 2026-10-29.
+CPK=kind-cloud-provider
+CPK_IMAGE=registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v0.12.0@sha256:1b97632e5dfec8f83c7e970cf18cedb9e6b707e272011d712cabf6ab59d323c9
 
 die() { echo "k8s-up: $*" >&2; exit 1; }
 step() { echo "── $*"; }
@@ -109,7 +112,7 @@ done
 [ "$no_chart" -eq 0 ] || die "set BASE_ROOT to the directory that holds the base-* checkouts"
 
 step "tools"
-for tool in kind kubectl helm helmfile docker cloud-provider-kind curl shasum; do
+for tool in kind kubectl helm helmfile docker curl shasum; do
     command -v "$tool" >/dev/null || die "$tool is not installed"
 done
 
@@ -166,21 +169,27 @@ got="$(shasum -a 256 "$crds" | cut -d' ' -f1)"
 kc apply --server-side --force-conflicts -f "$crds" >/dev/null
 
 step "cloud-provider-kind"
-# One instance serves every kind cluster on the machine, so one already
-# running is used, not doubled. A process counts only when its command is
-# cloud-provider-kind itself, not a `tail -f` of its log. The one started
-# here is recorded in a pidfile, which k8s-down.sh --delete stops and
-# nothing else.
-CPK_PATTERN='^([^ ]*/)?cloud-provider-kind( |$)'
-if running="$(pgrep -f "$CPK_PATTERN")"; then
-    echo "already running (pid $(echo "$running" | tr '\n' ' '))"
+# A container on the kind network, not a host process: the xDS server it
+# runs for the Gateway's proxies listens on its first network address, which
+# for a host process on macOS is the LAN address, and a VPN or firewall can
+# keep containers from reaching that (base-platform#101). On the kind network
+# the proxies reach it as a peer. One instance serves every kind cluster on
+# the machine, so a running one of this image is used, not doubled; a host
+# process would race it for the same Gateways, and is refused (checked once
+# no container of ours runs: on Linux a container's process shows on the host).
+if [ "$(docker inspect -f '{{.State.Running}} {{.Config.Image}}' "$CPK" 2>/dev/null || true)" = "true $CPK_IMAGE" ]; then
+    echo "already running: container $CPK"
 else
-    mkdir -p "$STATE"
+    docker rm -f "$CPK" >/dev/null 2>&1 || true
+    if other="$(pgrep -f '^([^ ]*/)?cloud-provider-kind( |$)')"; then
+        die "cloud-provider-kind already runs outside container $CPK (pid $(echo "$other" | tr '\n' ' ')): stop it (k8s-down.sh --delete stops one an earlier harness started)"
+    fi
     # No sudo: port mapping publishes the Gateway on localhost instead of
     # assigning its address to the host (which is what wants sudo on macOS).
-    echo "starting: cloud-provider-kind --enable-lb-port-mapping=true (log: $STATE/cloud-provider-kind.log)"
-    nohup cloud-provider-kind --enable-lb-port-mapping=true >"$STATE/cloud-provider-kind.log" 2>&1 &
-    echo $! > "$STATE/cloud-provider-kind.pid"
+    echo "starting: container $CPK, cloud-provider-kind --enable-lb-port-mapping=true (log: docker logs $CPK)"
+    docker run -d --restart=unless-stopped --name "$CPK" --network kind \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        "$CPK_IMAGE" --enable-lb-port-mapping=true >/dev/null
 fi
 
 step "namespaces"
@@ -194,7 +203,7 @@ for _ in $(seq 60); do
     kc get gatewayclass cloud-provider-kind >/dev/null 2>&1 && break
     sleep 2
 done
-kc get gatewayclass cloud-provider-kind >/dev/null || die "cloud-provider-kind registered no GatewayClass (log: $STATE/cloud-provider-kind.log)"
+kc get gatewayclass cloud-provider-kind >/dev/null || die "cloud-provider-kind registered no GatewayClass (log: docker logs $CPK)"
 kc apply -f "$ROOT/deploy/kind/gateway.yaml"
 
 # ── 3. Secrets and ConfigMaps from the instance ─────────────────────────────
@@ -255,7 +264,7 @@ for _ in $(seq 60); do
     sleep 2
 done
 address="$(kc -n edge get gateway base -o jsonpath='{.status.addresses[0].value}')"
-[ -n "$address" ] || die "Gateway base has no address (log: $STATE/cloud-provider-kind.log)"
+[ -n "$address" ] || die "Gateway base has no address (log: docker logs $CPK)"
 proxy="$(docker ps -q --filter "label=io.x-k8s.cloud-provider-kind.gateway.name=$CLUSTER/edge/base")"
 published=""
 # `docker port` fails when the proxy has no host binding (Linux, where the

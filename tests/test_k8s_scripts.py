@@ -29,7 +29,7 @@ SCRIPTS = ["k8s-up.sh", "k8s-down.sh", "k8s-test.sh", "k8s-images.sh", "k8s-regi
 REFERENCE = ROOT / "deploy" / "helmfile" / "reference-instance"
 HELMFILE = ROOT / "deploy" / "helmfile" / "helmfile.yaml.gotmpl"
 LAYERS = ["interface", "knowledge", "agents", "inference"]
-TOOLS = ["kind", "kubectl", "helm", "helmfile", "docker", "cloud-provider-kind"]
+TOOLS = ["kind", "kubectl", "helm", "helmfile", "docker", "curl", "shasum", "pgrep"]
 
 sys.path.insert(0, str(ROOT / "scripts"))
 import k8s_system_test  # noqa: E402
@@ -275,6 +275,95 @@ def test_up_refuses_releases_the_helmfile_refuses(tmp_path):
     assert result.returncode != 0
     assert "the helmfile does not render" in result.stderr
     assert [c.split()[0] for c in calls.read_text().splitlines()] == ["helmfile"]
+
+
+# ── cloud-provider-kind as a container (base-platform#101) ──────────────────
+
+CPK_IMAGE = (
+    "registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v0.12.0"
+    "@sha256:1b97632e5dfec8f83c7e970cf18cedb9e6b707e272011d712cabf6ab59d323c9"
+)
+
+
+def _up_through_cpk(tmp_path: Path, docker: str, pgrep: str = "exit 1"):
+    """k8s-up.sh on stubs that let it through the cluster and the CRDs to
+    cloud-provider-kind; past it, it stops at the kind network's subnet
+    (docker prints none)."""
+    up = (ROOT / "scripts" / "k8s-up.sh").read_text()
+    crd_sha = up.split("GATEWAY_API_SHA256=", 1)[1].split()[0]
+    bin_dir, calls = _stub_tools(
+        tmp_path,
+        {
+            "helmfile": "exit 0",
+            "kubectl": "exit 0",
+            "kind": 'case "$*" in "get clusters") echo base;; esac',
+            "curl": "exit 0",
+            "shasum": f"echo '{crd_sha}  -'",
+            "docker": docker,
+            "pgrep": pgrep,
+        },
+    )
+    inst = _instance(tmp_path, "FIRST_KEY=one\nSECOND_KEY=two\n")
+    result = _run(
+        "k8s-up.sh", str(inst), path=bin_dir, extra={"BASE_ROOT": str(_fake_base_root(tmp_path))}
+    )
+    return result, calls.read_text().splitlines()
+
+
+def test_up_runs_cloud_provider_kind_on_the_kind_network(tmp_path):
+    result, log = _up_through_cpk(tmp_path, "exit 0")
+    assert "no IPv4 subnet" in result.stderr, result.stderr
+    run = [c for c in log if c.startswith("docker run") and "kind-cloud-provider" in c]
+    assert run == [
+        "docker run -d --restart=unless-stopped --name kind-cloud-provider --network kind"
+        f" -v /var/run/docker.sock:/var/run/docker.sock {CPK_IMAGE} --enable-lb-port-mapping=true"
+    ], log
+    # Started before the GatewayClass is waited for.
+    assert log.index(run[0]) < next(i for i, c in enumerate(log) if "gatewayclass" in c), log
+
+
+def test_up_reuses_a_running_cloud_provider_kind(tmp_path):
+    docker = (
+        'case "$*" in *"{{.Config.Image}}"*kind-cloud-provider) '
+        f'echo "true {CPK_IMAGE}";; esac'
+    )
+    result, log = _up_through_cpk(tmp_path, docker)
+    assert "no IPv4 subnet" in result.stderr, result.stderr
+    assert "already running: container kind-cloud-provider" in result.stdout
+    assert not [c for c in log if "kind-cloud-provider" in c and c.split()[1] in ("run", "rm")], log
+
+
+def test_up_replaces_a_cloud_provider_kind_of_another_image(tmp_path):
+    docker = (
+        'case "$*" in *"{{.Config.Image}}"*kind-cloud-provider) '
+        'echo "true registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v0.11.0";; esac'
+    )
+    result, log = _up_through_cpk(tmp_path, docker)
+    assert "no IPv4 subnet" in result.stderr, result.stderr
+    rm = log.index("docker rm -f kind-cloud-provider")
+    assert rm < next(i for i, c in enumerate(log) if c.startswith("docker run") and CPK_IMAGE in c)
+
+
+def test_up_refuses_cloud_provider_kind_as_a_host_process(tmp_path):
+    result, log = _up_through_cpk(tmp_path, "exit 0", pgrep="echo 4242")
+    assert result.returncode != 0
+    assert "already runs outside container kind-cloud-provider (pid 4242" in result.stderr
+    assert not [c for c in log if c.startswith("docker run") and CPK_IMAGE in c], log
+
+
+def test_down_delete_removes_cloud_provider_kind(tmp_path):
+    bin_dir, calls = _stub_tools(tmp_path, {"kind": "exit 0", "docker": "exit 0"})
+    result = _run("k8s-down.sh", "--delete", path=bin_dir, extra={"XDG_CACHE_HOME": str(tmp_path)})
+    assert result.returncode == 0, result.stderr
+    assert "docker rm -f kind-cloud-provider" in calls.read_text().splitlines()
+    assert "removed cloud-provider-kind, container kind-cloud-provider" in result.stdout
+
+
+def test_down_without_delete_leaves_cloud_provider_kind(tmp_path):
+    bin_dir, calls = _stub_tools(tmp_path, {"kind": "exit 0", "docker": "exit 0"})
+    result = _run("k8s-down.sh", path=bin_dir, extra={"XDG_CACHE_HOME": str(tmp_path)})
+    assert result.returncode == 0, result.stderr
+    assert "kind-cloud-provider" not in calls.read_text()
 
 
 # ── An instance's own releases (base-platform#91) ───────────────────────────
