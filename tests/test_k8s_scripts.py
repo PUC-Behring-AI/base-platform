@@ -279,8 +279,9 @@ def test_up_refuses_releases_the_helmfile_refuses(tmp_path):
 
 # ── An instance's own releases (base-platform#91) ───────────────────────────
 
+# CI installs no helmfile, so these are skipped there: base-platform#97.
 needs_helmfile = pytest.mark.skipif(
-    shutil.which("helmfile") is None, reason="helmfile not installed"
+    shutil.which("helmfile") is None, reason="helmfile not installed (CI: base-platform#97)"
 )
 
 
@@ -368,6 +369,12 @@ def test_release_needs_and_several_layers(tmp_path):
         ({"name": "inference-db"}, "the base already has a release by that name"),
         ({"values": ["values/common/nowhere.yaml"]}, "no values file"),
         ({"wait": False}, 'unknown key "wait"'),
+        ({"name": "Store_1"}, 'release name "Store_1" is not a DNS label'),
+        ({"name": "store-"}, 'release name "store-" is not a DNS label'),
+        ({"needs": ["inference-db"]}, 'needs "inference-db" is not <namespace>/<release>'),
+        ({"needs": "inference/inference-db"}, "release store: needs is not a list"),
+        ({"values": "values/common/knowledge-store.yaml"}, "release store: values is not a list"),
+        ({"neededBy": "knowledge"}, "release store: neededBy is not a list"),
     ],
 )
 @needs_helmfile
@@ -376,6 +383,24 @@ def test_release_refused(tmp_path, release, message):
              "values": ["values/common/knowledge-store.yaml"]}
     entry.update(release)
     result = _helmfile(_with_releases(tmp_path, {"releases": [entry]}), "list")
+    assert result.returncode != 0
+    assert message in result.stderr, result.stderr
+
+
+@pytest.mark.parametrize(
+    ("doc", "message"),
+    [
+        ({"releases": {"name": "store"}}, "releases is not a list"),
+        ({"releases": ["store"]}, "a release is not a mapping"),
+        ({"releases": [
+            {"name": "store", "namespace": "knowledge", "chart": "postgres"},
+            {"name": "store", "namespace": "agents", "chart": "postgres"},
+        ]}, "release store is listed twice"),
+    ],
+)
+@needs_helmfile
+def test_releases_file_refused(tmp_path, doc, message):
+    result = _helmfile(_with_releases(tmp_path, doc), "list")
     assert result.returncode != 0
     assert message in result.stderr, result.stderr
 
@@ -436,6 +461,18 @@ def test_test_refuses_a_bad_system_test_before_the_cluster(tmp_path):
         ({"step": []}, "unknown key(s) ['step']"),
         ({"schemas": ["nowhere"], "steps": [{"flow": "f", "status": 200, "input": {}}]},
          "no directory"),
+        ({"schemas": "../schemas", "steps": [{"flow": "f", "status": 200, "input": {}}]},
+         "schemas is a list of directories"),
+        ({"schemas": [1], "steps": [{"flow": "f", "status": 200, "input": {}}]},
+         "schemas is a list of directories"),
+        ({"steps": [{"flow": "f", "status": 200, "input": {}, "body_schema": ["x"]}]},
+         "body_schema must be a string"),
+        ({"steps": [{"flow": "f", "status": 200, "input": {}, "outcome": True}]},
+         "outcome must be a string"),
+        ({"steps": [{"flow": "f", "status": 202, "input": {}, "timeout": 0}]},
+         "timeout must be a whole number"),
+        ({"steps": [{"flow": "f", "status": 202, "input": {}, "timeout": "60"}]},
+         "timeout must be a whole number"),
         ({"steps": [{"flow": "f", "status": 200, "input": {}}], "knowledge_search": {}},
          "query is required"),
         ({"steps": [{"flow": "f", "status": 200, "input": {}}],
@@ -505,14 +542,20 @@ class _Gateway(http.server.BaseHTTPRequestHandler):
         else:
             self._send(404, {})
 
+    state = "succeeded"
+
     def do_GET(self):
-        self._send(200, {"request_id": str(uuid.uuid4()), "job_id": "j-1", "state": "succeeded",
-                         "steps": [], "result": _response({"done": True})})
+        status = {"request_id": str(uuid.uuid4()), "job_id": "j-1", "state": self.state,
+                  "steps": []}
+        if self.state == "succeeded":
+            status["result"] = _response({"done": True})
+        self._send(200, status)
 
 
 @pytest.fixture
 def gateway():
     _Gateway.seen = []
+    _Gateway.state = "succeeded"
     server = http.server.HTTPServer(("127.0.0.1", 0), _Gateway)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{server.server_port}"
@@ -561,3 +604,19 @@ def test_search_check_counts_passages(tmp_path):
     empty = json.dumps({"request_id": str(uuid.uuid4()), "passages": []})
     with pytest.raises(SystemExit, match="0 passage"):
         k8s_system_test.search_check(config, empty)
+
+
+def test_job_timeout_is_per_step(tmp_path, gateway):
+    _Gateway.state = "running"
+    inst = _system_test(tmp_path, {"steps": [
+        {"flow": "start", "status": 202, "input": {}, "timeout": 1},
+    ]})
+    config = k8s_system_test.load(inst)
+    assert config["steps"][0]["timeout"] == 1
+    with pytest.raises(SystemExit, match="still running after 1 s"):
+        k8s_system_test.flows(config, gateway, "http://o", "p", "pw")
+
+
+def test_job_timeout_defaults_to_120(tmp_path):
+    inst = _system_test(tmp_path, {"steps": [{"flow": "f", "status": 202, "input": {}}]})
+    assert k8s_system_test.load(inst)["steps"][0]["timeout"] == 120
