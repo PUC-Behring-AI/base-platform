@@ -18,6 +18,7 @@ system-test.yaml:
                                   # to its end, which must succeed
         body_schema: <$id>        # optional: validates the response's body
         outcome: answered         # optional: the response's outcome
+        timeout: 120              # optional, 202 only: seconds to wait for the job
         save: {name: body.id}     # optional: ${name} in a later step's input
     knowledge_search:             # optional: a C1 search from namespace agents
       query: some words
@@ -47,7 +48,7 @@ C3 = "https://schemas.base.internal/c3_envelope.schema.json#/$defs/"
 C1 = "https://schemas.base.internal/c1_evidence.schema.json"
 KNOWLEDGE = "http://knowledge.knowledge.svc:8001/v1/evidence"
 TOP = {"schemas", "steps", "knowledge_search"}
-STEP = {"flow", "input", "input_file", "status", "body_schema", "outcome", "save"}
+STEP = {"flow", "input", "input_file", "status", "body_schema", "outcome", "save", "timeout"}
 SEARCH = {"query", "limit", "min_passages"}
 VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 JOB_SECONDS = 120
@@ -73,8 +74,11 @@ def load(instance: Path) -> dict[str, Any]:
         raise ConfigError(f"{path}: not a mapping")
     _unknown(str(path), doc, TOP)
 
+    entries = doc.get("schemas") or []
+    if not isinstance(entries, list) or not all(isinstance(e, str) for e in entries):
+        raise ConfigError(f"{path}: schemas is a list of directories")
     schemas = []
-    for entry in doc.get("schemas") or []:
+    for entry in entries:
         directory = (instance / entry).resolve()
         if not directory.is_dir():
             raise ConfigError(f"{path}: schemas: no directory {directory}")
@@ -93,6 +97,12 @@ def load(instance: Path) -> dict[str, Any]:
             raise ConfigError(f"{where}: flow is required")
         if step.get("status") not in (200, 202):
             raise ConfigError(f"{where}: status must be 200 (a response) or 202 (a job)")
+        for key in ("body_schema", "outcome"):
+            if key in step and (not isinstance(step[key], str) or not step[key]):
+                raise ConfigError(f"{where}: {key} must be a string")
+        timeout = step.get("timeout", JOB_SECONDS)
+        if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
+            raise ConfigError(f"{where}: timeout must be a whole number of seconds")
         if ("input" in step) == ("input_file" in step):
             raise ConfigError(f"{where}: exactly one of input, input_file")
         if "input_file" in step:
@@ -107,7 +117,7 @@ def load(instance: Path) -> dict[str, Any]:
         save = step.get("save") or {}
         if not isinstance(save, dict) or not all(isinstance(v, str) for v in save.values()):
             raise ConfigError(f"{where}: save maps a name to a dotted path")
-        checked.append({**step, "input": body, "save": save})
+        checked.append({**step, "input": body, "save": save, "timeout": timeout})
 
     search = doc.get("knowledge_search")
     if search is not None:
@@ -204,14 +214,16 @@ def flows(config: dict[str, Any], url: str, origin: str, principal: str, passwor
             check(C3 + "job_accepted", accepted)
             job = accepted["job_id"]
             print(f"flow {name}: HTTP 202, valid C3 job_accepted, job {job}")
-            deadline = time.monotonic() + JOB_SECONDS
+            deadline = time.monotonic() + step["timeout"]
             while True:
                 status, _, raw = call("GET", f"/api/v1/jobs/{job}", cookie=cookie)
                 if status != 200:
                     sys.exit(f"job {job}: HTTP {status}: {raw[:300]!r}")
                 state = json.loads(raw)["state"]
-                if state in ("succeeded", "failed") or time.monotonic() > deadline:
+                if state in ("succeeded", "failed"):
                     break
+                if time.monotonic() > deadline:
+                    sys.exit(f"job {job} still {state} after {step['timeout']} s")
                 time.sleep(1)
             final = json.loads(raw)
             check(C3 + "job_status", final)

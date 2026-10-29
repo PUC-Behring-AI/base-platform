@@ -51,19 +51,31 @@ environments:
 {{- if ne $key "releases" }}{{ fail (printf "%s: unknown key %q (only: releases)" $releasesFile $key) }}{{ end }}
 {{- end }}
 {{- $extra = index $doc "releases" | default list }}
+{{- if not (kindIs "slice" $extra) }}{{ fail (printf "%s: releases is not a list" $releasesFile) }}{{ end }}
 {{- end }}
+{{- $seen := list }}
 {{- $neededBy := dict "interface" list "agents" list "knowledge" list "inference" list }}
 {{- range $extra }}
 {{- $r := . }}
+{{- if not (kindIs "map" $r) }}{{ fail (printf "%s: a release is not a mapping: %v" $releasesFile $r) }}{{ end }}
 {{- range $key, $_ := $r }}
 {{- if not (has $key $fields) }}{{ fail (printf "%s: release %v: unknown key %q (one of: %s)" $releasesFile (index $r "name") $key (join ", " $fields)) }}{{ end }}
 {{- end }}
 {{- if not (index $r "name") }}{{ fail (printf "%s: a release has no name" $releasesFile) }}{{ end }}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" (toString $r.name)) }}{{ fail (printf "%s: release name %q is not a DNS label (lower case, digits, -)" $releasesFile (toString $r.name)) }}{{ end }}
+{{- if has $r.name $seen }}{{ fail (printf "%s: release %s is listed twice" $releasesFile $r.name) }}{{ end }}
+{{- $seen = append $seen $r.name }}
+{{- range list "values" "needs" "neededBy" }}
+{{- if and (hasKey $r .) (not (kindIs "slice" (index $r .))) }}{{ fail (printf "%s: release %s: %s is not a list" $releasesFile $r.name .) }}{{ end }}
+{{- end }}
 {{- if has $r.name $baseReleases }}{{ fail (printf "%s: release %s: the base already has a release by that name" $releasesFile $r.name) }}{{ end }}
 {{- if not (has (index $r "namespace") $namespaces) }}{{ fail (printf "%s: release %s: namespace %q is not one of: %s" $releasesFile $r.name (index $r "namespace") (join ", " $namespaces)) }}{{ end }}
 {{- if not (hasKey $charts (index $r "chart" | toString)) }}{{ fail (printf "%s: release %s: chart %q is not one of the base charts an instance may use: %s" $releasesFile $r.name (index $r "chart") (keys $charts | sortAlpha | join ", ")) }}{{ end }}
 {{- range index $r "values" | default list }}
 {{- if not (isFile (printf "%s/%s" $instance .)) }}{{ fail (printf "%s: release %s: no values file %s/%s" $releasesFile $r.name $instance .) }}{{ end }}
+{{- end }}
+{{- range index $r "needs" | default list }}
+{{- if not (regexMatch "^[a-z0-9-]+/[a-z0-9-]+$" (toString .)) }}{{ fail (printf "%s: release %s: needs %q is not <namespace>/<release>" $releasesFile $r.name (toString .)) }}{{ end }}
 {{- end }}
 {{- range index $r "neededBy" | default list }}
 {{- if not (has . $layers) }}{{ fail (printf "%s: release %s: neededBy %q is not a layer (one of: %s)" $releasesFile $r.name . (join ", " $layers)) }}{{ end }}

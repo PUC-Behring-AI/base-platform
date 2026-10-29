@@ -594,7 +594,8 @@ Each release is installed after its namespace's `schemas` and before every
 layer in its `neededBy`, so one cold `k8s-up.sh` brings the whole instance
 up. A chart off the allow-list, an unknown key, a namespace or layer that
 does not exist, a name the base already uses, or a missing values file is
-refused before the cluster is touched. The chart is the base's, by its
+refused before the cluster is touched. These refusals are tested only
+where helmfile is installed; CI has none yet (base-platform#97). The chart is the base's, by its
 short name, so its version moves with the base pin; the reference instance
 declares `knowledge-store` as the example.
 
@@ -626,6 +627,7 @@ and logs in through the Gateway, then runs the steps of
       - flow: notes-summarize
         input: {note_id: "${note}"}
         status: 202
+        timeout: 300                    # optional: seconds the job may take (default 120)
     knowledge_search:                   # optional: C1 from a pod in namespace agents
       query: some words
       limit: 3
@@ -635,8 +637,10 @@ Every answer validates against the C3 envelope; a key the file does not
 know is refused, so a typo never turns a check off. The reference instance
 runs `echo` and a knowledge search that may return no passage.
 
-Measured on 2026-10-28 on the same Mac, with the reference instance's
-`knowledge-store` added and the images in Docker's build cache: `k8s-up.sh`
+A second run, on 2026-10-28 on the Mac of the first run (at the end of this
+section), measured after this harness learnt `releases.yaml` and
+`system-test.yaml`, with the reference instance's `knowledge-store` added and
+the images in Docker's build cache: `k8s-up.sh`
 from no cluster took 178 s (the store installed before `knowledge`),
 `k8s-test.sh` 59 s with all five checks passing, `k8s-up.sh` again on the
 live cluster 36 s, and `k8s-down.sh --delete` 7 s.
@@ -667,9 +671,10 @@ out. The policies hold after that window, which is why `k8s-test.sh`'s probes
 wait before they ask; a hook Job's first seconds on kind are not covered
 (base-platform#90).
 
-Measured on 2026-10-28 on an Apple Silicon Mac (Docker Desktop with 7.75 GiB,
-kind v0.33.0, Kubernetes 1.36.4), with the layer images already in Docker's
-build cache: `k8s-up.sh` from no cluster took 157 s and `k8s-test.sh` 41 s;
+The first run, measured on 2026-10-28 before an instance could add
+releases, on an Apple Silicon Mac (Docker Desktop with 7.75 GiB, kind
+v0.33.0, Kubernetes 1.36.4), with the layer images already in Docker's build
+cache: `k8s-up.sh` from no cluster took 157 s and `k8s-test.sh` 41 s;
 the harness's containers (the node, the registry, the Gateway's proxy) peaked
 at 2.9 GiB in `docker stats`. Run again on the live cluster, `k8s-up.sh` took
 28 s, upgraded every release to revision 2, and the interface's migration hook
