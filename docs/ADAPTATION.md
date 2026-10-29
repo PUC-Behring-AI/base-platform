@@ -756,9 +756,12 @@ each from a root of its own, so they keep separate state:
   `base-alb` on Auto Mode's ALB Gateway controller, a NodeClass that tags
   every node with the caller's tags, an arm64 node pool every workload lands
   on, an optional amd64 GPU pool tainted `nvidia.com/gpu`,
-  and an EKS Pod Identity role that lets External Secrets Operator read
-  Secrets Manager secrets under one name prefix and nothing else. This is the
-  stack teardown destroys.
+  an EKS Pod Identity role that lets External Secrets Operator read
+  Secrets Manager secrets under one name prefix and nothing else, and,
+  with `bedrock_access`, one that lets one ServiceAccount invoke exactly the
+  Bedrock model ARNs the instance lists (a cross-region inference profile
+  needs its own ARN and the foundation model's in every region it routes
+  to). This is the stack teardown destroys.
 
 Only the built-in `system` node pool is on: the built-in `general-purpose`
 pool is amd64 only, where an image built on an arm64 Mac fails with
@@ -766,6 +769,27 @@ pool is amd64 only, where an image built on an arm64 Mac fails with
 Pod Identity association, outside every chart (rule 8); storage is
 `base-rwo` by name (rule 5); the edge Gateway names the module's
 `gateway_class` output instead of kind's `cloud-provider-kind`.
+
+The helmfile's `eks` environment installs the same releases, in the same
+order, as `kind`, with three differences. Each layer release reads
+`<instance-dir>/values/common/<release>.yaml`, then
+`<instance-dir>/values/eks/<release>.yaml` (both required), then
+`<instance-dir>/eks/.generated/<release>.yaml` when it exists (the
+instance's images pinned by digest, written by its push step). The edge
+Gateway is release `edge/gateway` (chart `deploy/charts/gateway`), of the
+GatewayClass in state value `gatewayClass`, default `base-alb`, and the
+interface waits for it. And nothing kind-only is rendered: no local-path
+StorageClass (the cluster module makes `base-rwo`), no interface `ipBlock`
+for kind's network (an instance that keeps the edge's NetworkPolicy names
+the load balancer's source, its VPC, in `values/eks/interface.yaml`).
+
+    BASE_ROOT=<dir of the base-* checkouts> K8S_INSTANCE_DIR=<instance-dir> \
+        helmfile -f deploy/helmfile/helmfile.yaml.gotmpl -e eks \
+        [--state-values-set gatewayClass=<name>] sync
+
+The namespaces, labelled `base.layer=<namespace>` as `k8s-up.sh` does, and
+each `k8s-secrets` Secret exist before the sync; on EKS that is the
+instance's work.
 
 Terraform never installs an application: helmfile does, on EKS as on kind.
 The modules configure no provider; the root configures `aws` and
