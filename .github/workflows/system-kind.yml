@@ -139,6 +139,16 @@ jobs:
           tar -xzf "$RUNNER_TEMP/cpk.tgz" -C "$bin" cloud-provider-kind
           echo "$bin" >> "$GITHUB_PATH"
 
+      # k8s-test.sh validates every answer with schemas/validate.py; the
+      # runner's own python3 has no referencing. The same install as gate.yml
+      # (pyproject.toml's dependencies).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the system test's Python dependencies
+        run: pip install pyyaml "jsonschema[format-nongpl]"
+
       - name: Write the instance's .env
         env:
           INSTANCE_ENV: ${{ secrets.instance_env }}
@@ -170,7 +180,7 @@ jobs:
         run: BASE_ROOT="$GITHUB_WORKSPACE" ./base-platform/scripts/k8s-up.sh "$INSTANCE_DIR"
 
       - name: Run the system test
-        run: BASE_ROOT="$GITHUB_WORKSPACE" ./base-platform/scripts/k8s-test.sh
+        run: BASE_ROOT="$GITHUB_WORKSPACE" ./base-platform/scripts/k8s-test.sh "$INSTANCE_DIR"
 
       # `get all` lists no Secret; describe and logs of a Pod name Secrets,
       # never print them.
