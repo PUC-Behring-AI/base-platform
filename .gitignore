@@ -16,3 +16,8 @@ venv/
 
 # Worktrees belong to a machine, not to the repository.
 .claude/worktrees/
+
+# Terraform working data and state belong to a machine or a backend.
+.terraform/
+*.tfstate
+*.tfstate.*

@@ -73,6 +73,36 @@ jobs:
           tar -xzf "$RUNNER_TEMP/kubeconform.tgz" -C "$HOME/.local/bin" kubeconform
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # deploy/terraform (the managed cluster) is checked with a pinned
+      # Terraform, the same way: by version and by the sha256 its release
+      # SHA256SUMS lists. tests/test_terraform.py runs the same checks.
+      - name: Install Terraform
+        env:
+          TERRAFORM_VERSION: 1.17.1
+          TERRAFORM_SHA256: 4638628058e71a55212b1c563712eac03b902128f40740f3dc8174df12135061
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -sSfL -o "$RUNNER_TEMP/terraform.zip" \
+            "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          echo "$TERRAFORM_SHA256  $RUNNER_TEMP/terraform.zip" | sha256sum -c -
+          unzip -o -q "$RUNNER_TEMP/terraform.zip" terraform -d "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Check the Terraform modules (fmt, init without backend, validate)
+        env:
+          TF_IN_AUTOMATION: "1"
+        run: |
+          set -euo pipefail
+          terraform fmt -check -recursive -diff deploy/terraform
+          for module in deploy/terraform/*/; do
+            echo "── $module"
+            TF_DATA_DIR="$RUNNER_TEMP/tf-$(basename "$module")" \
+              terraform -chdir="$module" init -backend=false -input=false -lockfile=readonly
+            TF_DATA_DIR="$RUNNER_TEMP/tf-$(basename "$module")" \
+              terraform -chdir="$module" validate
+          done
+
       - name: Run the shared gate
         env:
           BASE_DENYLIST: ${{ secrets.BASE_DENYLIST }}
