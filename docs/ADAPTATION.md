@@ -679,3 +679,46 @@ the harness's containers (the node, the registry, the Gateway's proxy) peaked
 at 2.9 GiB in `docker stats`. Run again on the live cluster, `k8s-up.sh` took
 28 s, upgraded every release to revision 2, and the interface's migration hook
 ran once more and found the schema already at its version.
+
+### The managed cluster
+
+`deploy/terraform/` holds two Terraform modules for EKS; an instance calls
+each from a root of its own, so they keep separate state:
+
+- `persistent`: the ECR repositories, a versioned, encrypted, private backups
+  bucket and two cost budgets (monthly and daily, account-wide, mailed to
+  `budget_emails`). Created once and never destroyed; `prevent_destroy`
+  refuses it.
+- `cluster`: EKS Auto Mode on public subnets without a NAT gateway (the
+  region's default VPC unless the caller names one), and what the charts
+  assume of a cluster: StorageClass `base-rwo` on Auto Mode's EBS driver
+  (`ebs.csi.eks.amazonaws.com`, gp3, encrypted, `WaitForFirstConsumer`),
+  NetworkPolicy enforcement switched on (Auto Mode accepts policies and
+  enforces none until the VPC CNI ConfigMap says so), GatewayClass
+  `base-alb` on Auto Mode's ALB Gateway controller, an arm64 node pool every
+  workload lands on, an optional amd64 GPU pool tainted `nvidia.com/gpu`,
+  and an EKS Pod Identity role that lets External Secrets Operator read
+  Secrets Manager secrets under one name prefix and nothing else. This is the
+  stack teardown destroys.
+
+Only the built-in `system` node pool is on: the built-in `general-purpose`
+pool is amd64 only, where an image built on an arm64 Mac fails with
+`exec format error`. The chart rules above hold unchanged: identity is the
+Pod Identity association, outside every chart (rule 8); storage is
+`base-rwo` by name (rule 5); the edge Gateway names the module's
+`gateway_class` output instead of kind's `cloud-provider-kind`.
+
+Terraform never installs an application: helmfile does, on EKS as on kind.
+The modules configure no provider; the root configures `aws` and
+`alekc/kubectl` (lazily loaded, because the cluster's endpoint is unknown
+until it exists). `deploy/terraform/README.md` has the interface, the
+provider block, the pinned versions and why, and what has not been verified
+on a live cluster. The gate checks both modules with `terraform fmt`,
+`init -backend=false` and `validate`, with a Terraform pinned by sha256 in
+`gate.yml`.
+
+Delete PersistentVolumeClaims and Gateways before destroying `cluster`: Auto
+Mode does not delete the EBS volumes it provisioned, and a load balancer left
+behind keeps billing. Since 2026-04-22 the instances, volumes and network
+interfaces Auto Mode creates are hidden from EC2's default list calls, so a
+leftover check must ask for managed resources explicitly.
