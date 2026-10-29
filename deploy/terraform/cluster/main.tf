@@ -328,3 +328,44 @@ resource "aws_eks_pod_identity_association" "eso" {
   role_arn        = aws_iam_role.eso.arn
   tags            = var.tags
 }
+
+# ── One ServiceAccount's Bedrock identity, when the caller asks for it ───────
+# The same Pod Identity binding as the operator's, for the one workload that
+# calls Bedrock (an inference gateway, say). It may invoke exactly the model
+# ARNs the caller lists, and nothing else; no static AWS key anywhere.
+
+data "aws_iam_policy_document" "bedrock_invoke" {
+  count = var.bedrock_access == null ? 0 : 1
+
+  statement {
+    actions   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+    resources = var.bedrock_access.model_arns
+  }
+}
+
+resource "aws_iam_role" "bedrock" {
+  count = var.bedrock_access == null ? 0 : 1
+
+  name               = "${var.name}-bedrock"
+  assume_role_policy = data.aws_iam_policy_document.eso_trust.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy" "bedrock" {
+  count = var.bedrock_access == null ? 0 : 1
+
+  name   = "invoke-listed-models"
+  role   = aws_iam_role.bedrock[0].id
+  policy = data.aws_iam_policy_document.bedrock_invoke[0].json
+}
+
+resource "aws_eks_pod_identity_association" "bedrock" {
+  count = var.bedrock_access == null ? 0 : 1
+
+  region          = var.region
+  cluster_name    = module.eks.cluster_name
+  namespace       = var.bedrock_access.namespace
+  service_account = var.bedrock_access.service_account
+  role_arn        = aws_iam_role.bedrock[0].arn
+  tags            = var.tags
+}
