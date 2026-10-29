@@ -44,3 +44,15 @@ variable "budget_emails" {
     error_message = "budget_emails is empty: a budget nobody hears from protects nothing."
   }
 }
+
+variable "ecr_untagged_expire_days" {
+  description = "Days after which an untagged image (a layer left by a re-pushed tag) is deleted."
+  type        = number
+  default     = 7
+}
+
+variable "ecr_tagged_keep" {
+  description = "Tagged images kept per repository; older ones are deleted."
+  type        = number
+  default     = 20
+}
