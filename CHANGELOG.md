@@ -19,6 +19,16 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **Terraform modules for a managed EKS Auto Mode cluster** (#86): `deploy/terraform/persistent` and `deploy/terraform/cluster`, each called by an instance from a root of its own (separate state). Nothing here installs an application: helmfile does, on EKS as on kind. `docs/ADAPTATION.md` §10 gains *The managed cluster*; `deploy/terraform/README.md` has the interface, the provider block and the pinned versions.
+  - `persistent` (never destroyed): ECR repositories with a lifecycle policy, a versioned private backups bucket, monthly and daily account-wide budgets. Variables `name`, `region`, `tags`, `ecr_repositories`, `budget_monthly_usd`, `budget_daily_usd`, `budget_emails`; outputs `ecr_repository_urls`, `backups_bucket`.
+  - `cluster` (the stack teardown destroys): EKS Auto Mode on public subnets without NAT (the default VPC unless named), StorageClass `base-rwo` on `ebs.csi.eks.amazonaws.com`, NetworkPolicy enforcement on, GatewayClass `base-alb` with an internet-facing ALB by default, an arm64 node pool and an optional amd64 GPU pool, and a Pod Identity role for External Secrets Operator limited to `secretsmanager:GetSecretValue` under `secrets_prefix`. Variables `name`, `region`, `tags`, `kubernetes_version`, `vpc_id`, `subnet_ids`, `gpu_node_pool`, `eso_namespace`, `secrets_prefix` and optional tuning ones; outputs `cluster_name`, `cluster_endpoint`, `cluster_certificate_authority_data`, `oidc_issuer`, `storage_class`, `gateway_class`, `eso_role_arn`.
+  - The root configures the `aws` and `alekc/kubectl` providers (kubectl with `lazy_load = true`), and the applying machine needs aws-cli 2.38.6 or newer: the aws provider cannot yet turn the Gateway API on, so a script does it once per cluster.
+  - Not verified: no `apply` has run. Unchecked on a live cluster: nodes of NodeClass `base` joining, Auto Mode's EBS driver honouring the volume tags, the `gateway.k8s.aws` CRDs being installed and a GatewayClass-level `parametersRef` being honoured, and whether External Secrets Operator needs more than `GetSecretValue`.
+  - Not `BREAKING`: nothing an instance already uses changes.
+- **The gate workflow's Terraform step**: Terraform 1.17.1 pinned by sha256, then `terraform fmt -check`, `init -backend=false`, `validate` and `test` for each module; `tests/test_terraform.py` runs the same checks and refuses an account id, a region outside a variable default or an instance name in the modules.
+
 ## [0.9.0] — 2026-10-29
 
 ### Added
