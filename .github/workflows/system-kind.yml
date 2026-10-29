@@ -222,7 +222,7 @@ jobs:
               kc -n "$ns" describe pod "$pod" > "$out/describe-$ns-$pod.txt" 2>&1
               kc -n "$ns" logs "$pod" --all-containers --tail=500 > "$out/logs-$ns-$pod.txt" 2>&1
             done
-          docker logs kind-cloud-provider > "$out/cloud-provider-kind.log" 2>&1
+          docker logs kind-cloud-provider > "$out/cloud-provider-kind.log" 2>&1 || true
           # A log may still print a secret: every .env value of 8 characters
           # or more becomes *** in every file, matched as a fixed string.
           # No .env means the run stopped before any secret reached the
