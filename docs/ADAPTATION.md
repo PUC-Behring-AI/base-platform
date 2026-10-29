@@ -696,14 +696,22 @@ jobs:
       base_ref: vX.Y.Z
       instance_path: deploy/kind            # its <instance-dir>
       instance_repository: owner/name       # the repository that holds it
+      require_instance_env: true            # optional: no throwaway values
     secrets: inherit                        # HARMONY_KEY_*, and instance_env
 ```
 
 Like harmony it needs the variable `HARMONY_SIBLINGS` and a deploy key
 `HARMONY_KEY_<NAME>` per sibling. Secret `instance_env` is the instance's
-`.env`; without it each key of `.env.example` gets a throwaway value. On a
-pull request to base-platform it runs when `deploy/`, `scripts/k8s-*` or the
-workflow changes.
+`.env`; without it each key of `.env.example` gets a throwaway value and the
+run says so in a notice, unless `require_instance_env` makes it fail.
+`instance_repository` should be the calling repository, which is checked out
+at the commit that started the run; any other is checked out at its default
+branch, and only when it is public, since the run's token reads no other
+private repository. The `cluster-state` artifact is as visible as the
+repository's runs (anyone, for a public one): every `.env` value of 8
+characters or more is replaced by `***` in it before upload, and a shorter one
+is not. In base-platform it runs on a pull request and on a push to `main`
+when `deploy/`, `scripts/k8s-*` or the workflow changes.
 
 The first green run, on 2026-10-29 on a GitHub-hosted `ubuntu-latest`
 runner (2 vCPU, 7 GB, amd64) with the reference instance and no build cache:

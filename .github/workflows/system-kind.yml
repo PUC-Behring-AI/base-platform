@@ -10,11 +10,16 @@ name: system-kind
 # instance_repository when the instance directory is not in base-platform).
 # The @ref picks this file, not what it checks out; base_ref does that.
 #
-# Like harmony, it names no repository of its own: each base-* sibling is
-# cloned with the read-only deploy key HARMONY_KEY_<NAME> and the repository
-# variable HARMONY_SIBLINGS lists them. A missing variable or secret fails the
-# run. On a pull request to base-platform itself, only changes under deploy/,
-# scripts/k8s-* or this file run it: the test takes minutes.
+# It names one repository, base-platform, whose scripts it runs; like harmony,
+# every other base-* sibling is cloned with the read-only deploy key
+# HARMONY_KEY_<NAME> and the repository variable HARMONY_SIBLINGS lists them.
+# A missing variable or secret fails the run. In base-platform itself it runs
+# on a pull request and on a push to main, and only when deploy/,
+# scripts/k8s-* or this file change: the test takes minutes.
+#
+# On failure the cluster's state is uploaded as an artifact, as visible as the
+# repository's runs; every value of the .env of 8 characters or more is
+# replaced by *** in it first.
 
 on:
   workflow_call:
@@ -31,11 +36,21 @@ on:
         description: owner/name of the repository that holds instance_path; empty means base-platform
         type: string
         default: ""
+      require_instance_env:
+        description: Fail when secret instance_env is missing, instead of generating throwaway values
+        type: boolean
+        default: false
     secrets:
       instance_env:
         description: The instance's .env, KEY=value lines; without it throwaway values are generated for the keys of .env.example
         required: false
   pull_request:
+    paths:
+      - deploy/**
+      - scripts/k8s-*
+      - .github/workflows/system-kind.yml
+  push:
+    branches: [main]
     paths:
       - deploy/**
       - scripts/k8s-*
@@ -53,21 +68,26 @@ jobs:
       INSTANCE_PATH: ${{ inputs.instance_path || 'deploy/helmfile/reference-instance' }}
       INSTANCE_REPOSITORY: ${{ inputs.instance_repository }}
     steps:
-      # base-platform's own pull request is the code under test; a caller's
-      # run takes base-platform at base_ref, like every other base-*.
+      # In base-platform itself the commit under test is the code under test;
+      # a caller's run takes base-platform at base_ref, like every other base-*.
       - name: Check out base-platform
         uses: actions/checkout@v4
         with:
           repository: PUC-Behring-AI/base-platform
-          ref: ${{ github.repository == 'PUC-Behring-AI/base-platform' && github.event_name == 'pull_request' && github.sha || (inputs.base_ref || 'main') }}
+          ref: ${{ github.repository == 'PUC-Behring-AI/base-platform' && github.sha || (inputs.base_ref || 'main') }}
           path: base-platform
+          persist-credentials: false
 
+      # The caller's own repository is checked out at the commit that started
+      # the run; any other at its default branch, and the run's token reads it
+      # only when it is public.
       - name: Check out the instance repository
         if: inputs.instance_repository != ''
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.instance_repository }}
           path: instance-repository
+          persist-credentials: false
 
       - name: Check out the other base-* repositories at base_ref
         env:
@@ -76,6 +96,7 @@ jobs:
           OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
+          trap 'rm -f "$RUNNER_TEMP"/HARMONY_KEY_*' EXIT
           if [ -z "$SIBLINGS" ]; then
             echo "::error::repository variable HARMONY_SIBLINGS is not set"
             exit 1
@@ -152,8 +173,10 @@ jobs:
       - name: Write the instance's .env
         env:
           INSTANCE_ENV: ${{ secrets.instance_env }}
+          REQUIRE_INSTANCE_ENV: ${{ inputs.require_instance_env || false }}
         run: |
           set -euo pipefail
+          umask 077
           if [ -n "$INSTANCE_REPOSITORY" ]; then
             dir="$GITHUB_WORKSPACE/instance-repository/$INSTANCE_PATH"
           else
@@ -163,7 +186,11 @@ jobs:
           echo "INSTANCE_DIR=$dir" >> "$GITHUB_ENV"
           if [ -n "$INSTANCE_ENV" ]; then
             printf '%s\n' "$INSTANCE_ENV" > "$dir/.env"
+          elif [ "$REQUIRE_INSTANCE_ENV" = "true" ]; then
+            echo "::error::require_instance_env is set and secret instance_env is missing"
+            exit 1
           elif [ -f "$dir/.env.example" ]; then
+            echo "::notice::no instance_env secret: throwaway values for the keys of $INSTANCE_PATH/.env.example"
             # Throwaway values for a cluster that lives as long as this run.
             # Hex only: some are put into a URL unescaped.
             while IFS= read -r line; do
@@ -200,6 +227,26 @@ jobs:
               kc -n "$ns" logs "$pod" --all-containers --tail=500 > "$out/logs-$ns-$pod.txt" 2>&1
             done
           cp "${XDG_CACHE_HOME:-$HOME/.cache}/base-kind/cloud-provider-kind.log" "$out/" 2>/dev/null || true
+          # A log may still print a secret: every .env value of 8 characters
+          # or more becomes *** in every file, matched as a fixed string.
+          # No .env means the run stopped before any secret reached the
+          # cluster; a scrub that fails uploads nothing.
+          env_file="${INSTANCE_DIR:-/nonexistent}/.env"
+          [ ! -f "$env_file" ] || python3 - "$env_file" "$out" <<'EOF' || { echo "::error::could not scrub the cluster's state; not uploading it"; rm -rf "$out"; exit 1; }
+          import sys
+          from pathlib import Path
+          values = set()
+          for line in Path(sys.argv[1]).read_text().splitlines():
+              key, sep, value = line.partition("=")
+              if sep and not key.lstrip().startswith("#") and len(value) >= 8:
+                  values.add(value)
+          for path in Path(sys.argv[2]).iterdir():
+              text = path.read_text(errors="replace")
+              for value in sorted(values, key=len, reverse=True):
+                  text = text.replace(value, "***")
+              path.write_text(text)
+          print(f"scrubbed {len(values)} value(s)")
+          EOF
           ls "$out"
 
       - name: Upload the cluster's state
