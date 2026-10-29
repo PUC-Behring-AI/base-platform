@@ -33,6 +33,41 @@ resource "aws_ecr_repository" "this" {
   }
 }
 
+# Untagged images are what a re-pushed tag leaves behind; tagged ones pile
+# up with every release. Both cost storage nobody reads.
+resource "aws_ecr_lifecycle_policy" "this" {
+  for_each = aws_ecr_repository.this
+
+  region     = var.region
+  repository = each.value.name
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = var.ecr_untagged_expire_days
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep the newest tagged images"
+        selection = {
+          tagStatus      = "tagged"
+          tagPatternList = ["*"]
+          countType      = "imageCountMoreThan"
+          countNumber    = var.ecr_tagged_keep
+        }
+        action = { type = "expire" }
+      },
+    ]
+  })
+}
+
 resource "aws_s3_bucket" "backups" {
   region = var.region
   bucket = local.backups_bucket
@@ -50,6 +85,28 @@ resource "aws_s3_bucket_versioning" "backups" {
   versioning_configuration {
     status = "Enabled"
   }
+}
+
+# Versioning keeps a deleted or overwritten backup for a month, not forever.
+resource "aws_s3_bucket_lifecycle_configuration" "backups" {
+  region = var.region
+  bucket = aws_s3_bucket.backups.id
+
+  rule {
+    id     = "expire-old-versions"
+    status = "Enabled"
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.backups]
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "backups" {

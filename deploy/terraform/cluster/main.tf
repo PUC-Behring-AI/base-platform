@@ -59,6 +59,11 @@ locals {
 
   storage_class = "base-rwo"
   gateway_class = "base-alb"
+  node_class    = "base"
+
+  # The EBS CSI driver's StorageClass parameters tagSpecification_<n>,
+  # "key=value" each, so the volumes carry the caller's tags.
+  volume_tags = { for i, k in sort(keys(var.tags)) : "tagSpecification_${i + 1}" => "${k}=${var.tags[k]}" }
 }
 
 # Auto Mode places an internet-facing load balancer only in a subnet tagged
@@ -84,12 +89,13 @@ module "eks" {
 
   # The operator's kubectl and helmfile reach the API from outside the VPC.
   endpoint_public_access                   = true
+  endpoint_public_access_cidrs             = var.endpoint_public_access_cidrs
   enable_cluster_creator_admin_permissions = true
 
   # Only the built-in `system` pool (tainted CriticalAddonsOnly, both
-  # architectures): it brings the `default` NodeClass the pools below use.
-  # The built-in general-purpose pool is amd64 only, and an arm64 image
-  # would fail there with `exec format error`.
+  # architectures), which also makes EKS create the node role's access entry
+  # that NodeClass `base` below reuses. The built-in general-purpose pool is
+  # amd64 only, and an arm64 image would fail there with `exec format error`.
   compute_config = {
     enabled    = true
     node_pools = ["system"]
@@ -97,6 +103,18 @@ module "eks" {
 
   vpc_id     = local.vpc_id
   subnet_ids = local.subnet_ids
+
+  # Secrets in etcd keep EKS's default envelope encryption (an AWS-owned
+  # key) instead of a customer key: no key to pay for monthly, and none left
+  # pending deletion for a week or more after every teardown.
+  create_kms_key    = false
+  encryption_config = null
+
+  # No control plane logs unless asked for; asked for, kept briefly. Left on
+  # by default they bill per GB ingested for logs nobody reads.
+  enabled_log_types                      = var.control_plane_logs
+  create_cloudwatch_log_group            = length(var.control_plane_logs) > 0
+  cloudwatch_log_group_retention_in_days = var.control_plane_log_retention_days
 
   tags = var.tags
 }
@@ -125,7 +143,7 @@ resource "kubectl_manifest" "storage_class" {
     provisioner       = "ebs.csi.eks.amazonaws.com"
     volumeBindingMode = "WaitForFirstConsumer"
     reclaimPolicy     = "Delete"
-    parameters        = { type = "gp3", encrypted = "true" }
+    parameters        = merge({ type = "gp3", encrypted = "true" }, local.volume_tags)
     allowedTopologies = [{
       matchLabelExpressions = [{ key = "eks.amazonaws.com/compute-type", values = ["auto"] }]
     }]
@@ -160,6 +178,28 @@ resource "kubectl_manifest" "gateway_class" {
   depends_on = [terraform_data.gateway_api]
 }
 
+# The NodeClass both pools use, in place of Auto Mode's `default`: the same
+# node role (so the access entry EKS made for it holds), the cluster's
+# subnets and security group, a public address on every node (no NAT, so
+# that is how nodes reach ECR and the internet; inbound stays closed by the
+# security group), and the caller's tags on every instance.
+resource "kubectl_manifest" "node_class" {
+  yaml_body = yamlencode({
+    apiVersion = "eks.amazonaws.com/v1"
+    kind       = "NodeClass"
+    metadata   = { name = local.node_class }
+    spec = {
+      role                       = module.eks.node_iam_role_name
+      subnetSelectorTerms        = [for id in local.subnet_ids : { id = id }]
+      securityGroupSelectorTerms = [{ id = module.eks.cluster_primary_security_group_id }]
+      advancedNetworking         = { associatePublicIPAddress = true }
+      tags                       = var.tags
+    }
+  })
+
+  depends_on = [module.eks]
+}
+
 # Every workload lands here: the only pool without a taint.
 resource "kubectl_manifest" "cpu_pool" {
   yaml_body = yamlencode({
@@ -169,7 +209,7 @@ resource "kubectl_manifest" "cpu_pool" {
     spec = {
       template = {
         spec = {
-          nodeClassRef = { group = "eks.amazonaws.com", kind = "NodeClass", name = "default" }
+          nodeClassRef = { group = "eks.amazonaws.com", kind = "NodeClass", name = local.node_class }
           requirements = [
             { key = "kubernetes.io/arch", operator = "In", values = ["arm64"] },
             { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] },
@@ -179,11 +219,11 @@ resource "kubectl_manifest" "cpu_pool" {
         }
       }
       limits     = { cpu = tostring(var.cpu_pool_cpu_limit) }
-      disruption = { consolidationPolicy = "WhenEmptyOrUnderutilized", consolidateAfter = "1m" }
+      disruption = { consolidationPolicy = var.cpu_pool_consolidation, consolidateAfter = "5m" }
     }
   })
 
-  depends_on = [module.eks]
+  depends_on = [kubectl_manifest.node_class]
 }
 
 # Only pods that tolerate nvidia.com/gpu land here (inference's GPU workers).
@@ -197,7 +237,7 @@ resource "kubectl_manifest" "gpu_pool" {
     spec = {
       template = {
         spec = {
-          nodeClassRef = { group = "eks.amazonaws.com", kind = "NodeClass", name = "default" }
+          nodeClassRef = { group = "eks.amazonaws.com", kind = "NodeClass", name = local.node_class }
           requirements = [
             { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
             { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] },
@@ -211,7 +251,7 @@ resource "kubectl_manifest" "gpu_pool" {
     }
   })
 
-  depends_on = [module.eks]
+  depends_on = [kubectl_manifest.node_class]
 }
 
 # ── External Secrets Operator's identity ─────────────────────────────────────
@@ -226,6 +266,13 @@ data "aws_iam_policy_document" "eso_trust" {
     principals {
       type        = "Service"
       identifiers = ["pods.eks.amazonaws.com"]
+    }
+
+    # Only Pod Identity acting for this account may assume the role.
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
     }
   }
 }

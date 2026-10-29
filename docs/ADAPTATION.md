@@ -695,8 +695,9 @@ each from a root of its own, so they keep separate state:
   (`ebs.csi.eks.amazonaws.com`, gp3, encrypted, `WaitForFirstConsumer`),
   NetworkPolicy enforcement switched on (Auto Mode accepts policies and
   enforces none until the VPC CNI ConfigMap says so), GatewayClass
-  `base-alb` on Auto Mode's ALB Gateway controller, an arm64 node pool every
-  workload lands on, an optional amd64 GPU pool tainted `nvidia.com/gpu`,
+  `base-alb` on Auto Mode's ALB Gateway controller, a NodeClass that tags
+  every node with the caller's tags, an arm64 node pool every workload lands
+  on, an optional amd64 GPU pool tainted `nvidia.com/gpu`,
   and an EKS Pod Identity role that lets External Secrets Operator read
   Secrets Manager secrets under one name prefix and nothing else. This is the
   stack teardown destroys.
@@ -716,6 +717,23 @@ provider block, the pinned versions and why, and what has not been verified
 on a live cluster. The gate checks both modules with `terraform fmt`,
 `init -backend=false` and `validate`, with a Terraform pinned by sha256 in
 `gate.yml`.
+
+An instance calls each module at the base tag it pins (§7), never at a
+branch:
+
+    module "cluster" {
+      source = "git::https://github.com/<org>/base-platform.git//deploy/terraform/cluster?ref=vX.Y.Z"
+      ...
+    }
+
+and moves `ref` together with `base-version.yaml` when it upgrades (§8).
+The state is the caller's: an S3 bucket the instance creates, versioned and
+private, before the first `terraform init`, with `use_lockfile = true` in the
+backend block for locking (Terraform 1.10 or newer; no DynamoDB table).
+Neither module creates that bucket, because a stack cannot hold its own
+state. The caller commits each root's `.terraform.lock.hcl`, so the providers
+an apply uses are the ones its plan used; the module's own lock files only
+pin what this repository's gate validates with.
 
 Delete PersistentVolumeClaims and Gateways before destroying `cluster`: Auto
 Mode does not delete the EBS volumes it provisioned, and a load balancer left

@@ -5,7 +5,7 @@ module, so the two have separate state:
 
 | Module | What it creates | Lifetime |
 |---|---|---|
-| `persistent/` | ECR repositories, the backups bucket (versioned, encrypted, private), a monthly and a daily cost budget | created once, never destroyed (`prevent_destroy` on the repositories and the bucket) |
+| `persistent/` | ECR repositories with a lifecycle policy, the backups bucket (versioned, encrypted, private, old versions expire), a monthly and a daily cost budget | created once, never destroyed (`prevent_destroy` on the repositories and the bucket) |
 | `cluster/` | EKS Auto Mode cluster, the arm64 and optional GPU node pools, StorageClass `base-rwo`, GatewayClass `base-alb`, network policy enforcement, External Secrets Operator's Pod Identity role | the stack teardown destroys |
 
 Nothing here installs an application: helmfile installs the charts, on this
@@ -22,12 +22,16 @@ a region or an instance either: the caller passes them.
 | `region` | string | — |
 | `tags` | map(string) | `{}` |
 | `ecr_repositories` | list(string) | `[]` — each becomes `<name>/<entry>` |
+| `ecr_untagged_expire_days` | number | `7` — untagged images deleted after this |
+| `ecr_tagged_keep` | number | `20` — newest tagged images kept per repository |
 | `budget_monthly_usd` | number | — mails at 80% actual and 100% forecast |
 | `budget_daily_usd` | number | — mails at 100% actual |
 | `budget_emails` | list(string) | — must not be empty |
 
 Outputs: `ecr_repository_urls` (map, entry → URL), `backups_bucket`
-(`<name>-backups-<account id>`).
+(`<name>-backups-<account id>`). In the bucket, a noncurrent (overwritten or
+deleted) version expires after 30 days and an incomplete multipart upload is
+aborted after 7.
 
 The budgets cover the whole account. A budget filtered by a cost allocation
 tag reads zero until someone with billing access activates the tag, and then
@@ -41,10 +45,14 @@ it stays silent exactly when it should warn.
 | `region` | string | — |
 | `tags` | map(string) | `{}` |
 | `kubernetes_version` | string | `"1.36"` |
+| `endpoint_public_access_cidrs` | list(string) | `["0.0.0.0/0"]` — who may reach the API endpoint |
+| `control_plane_logs` | list(string) | `[]` — no control plane logs, no log group |
+| `control_plane_log_retention_days` | number | `7` — when logs are on |
 | `vpc_id` | string | `null` → the region's default VPC |
 | `subnet_ids` | list(string) | `[]` → the default VPC's public subnets outside `excluded_zone_ids`; give with `vpc_id` |
 | `excluded_zone_ids` | list(string) | the zone ids where EKS refuses a control plane |
 | `cpu_pool_cpu_limit` | number | `32` |
+| `cpu_pool_consolidation` | string | `"WhenEmpty"` — or `"WhenEmptyOrUnderutilized"` |
 | `gpu_node_pool` | bool | `false` |
 | `gpu_instance_types` | list(string) | `["g6.xlarge"]` |
 | `gpu_pool_cpu_limit` | number | `8` |
@@ -83,23 +91,38 @@ provider "kubectl" {
 ```
 
 The machine that applies `cluster` needs `aws` (aws-cli 2.38.6 or newer) on
-`PATH`, for the token above and for the Gateway API step below.
+`PATH`, for the token above and for the Gateway API step below. Both run
+with the **ambient** AWS credentials (environment variables, `AWS_PROFILE`,
+the SSO cache), not with the aws provider's `profile` or `assume_role`: a
+root that reaches the account only through the provider's `assume_role`
+must also export credentials for that role before `apply`.
 
 ## What `cluster` does, and why
 
-- **Auto Mode, built-in `system` pool only.** At least one built-in pool must
-  be on for EKS to create the `default` NodeClass the custom pools use. The
+- **Auto Mode, built-in `system` pool only.** `system` is tainted
+  `CriticalAddonsOnly` and takes only cluster add-ons; having a built-in pool
+  on also makes EKS create the access entry for the Auto Mode node role. The
   other built-in pool, `general-purpose`, is amd64 only; an arm64 image
-  scheduled there fails with `exec format error`. `system` is tainted
-  `CriticalAddonsOnly` and takes only cluster add-ons.
+  scheduled there fails with `exec format error`.
+- **NodeClass `base`**, used by both custom pools instead of Auto Mode's
+  `default`: the same node role (so the access entry EKS created for it
+  holds, and no other is needed), the cluster's subnets and security group,
+  `associatePublicIPAddress: true` (no NAT, so a public address is how nodes
+  reach ECR; inbound stays closed by the security group), and `tags = var.tags`
+  on every instance. The EKS module's default `enable_auto_mode_custom_tags`
+  gives the cluster role the permission to tag.
 - **NodePool `arm64`** (Graviton, on demand, families c/m/r of generation 6
-  or newer): the only untainted pool, so every workload lands there.
+  or newer): the only untainted pool, so every workload lands there. Its
+  consolidation is `WhenEmpty` by default: Karpenter removes empty nodes but
+  never evicts pods to pack busy ones, so nothing restarts in the middle of
+  a demo.
 - **NodePool `gpu`** (when `gpu_node_pool = true`): amd64, on demand,
   `gpu_instance_types`, tainted `nvidia.com/gpu:NoSchedule`. Auto Mode brings
   the NVIDIA driver and device plugin.
 - **StorageClass `base-rwo`**: provisioner `ebs.csi.eks.amazonaws.com` (Auto
   Mode's, not the self-managed `ebs.csi.aws.com`), gp3, encrypted,
-  `WaitForFirstConsumer`, only on Auto Mode nodes. Auto Mode creates no
+  `WaitForFirstConsumer`, only on Auto Mode nodes, with the caller's tags
+  as `tagSpecification_<n>` parameters. Auto Mode creates no
   StorageClass of its own. Volumes are not deleted with the cluster: delete
   the PVCs before `terraform destroy`, or the EBS volumes keep billing.
 - **Network policy**: ConfigMap `kube-system/amazon-vpc-cni` with
@@ -111,20 +134,30 @@ The machine that applies `cluster` needs `aws` (aws-cli 2.38.6 or newer) on
   that turns the Gateway API on (`elasticLoadBalancing.gatewayApi.crds.managed`,
   AWS owning the CRDs at Gateway API v1) has no argument in the aws provider
   yet, so `enable-gateway-api.sh` calls `aws eks update-cluster-config` once
-  per cluster and waits for the update. **Temporary**: replace it with the
-  provider's argument when there is one.
+  per cluster and waits for the update. It is idempotent: it exits at once
+  when `describe-cluster` already shows the setting, and waits for an update
+  already in progress instead of starting a second one (EKS refuses that).
+  **Temporary**: replace it with the provider's argument when there is one.
 - **Subnets**: the default VPC's subnets that map a public IP on launch, in
   the zones EKS accepts; no NAT gateway. Each gets the tag
   `kubernetes.io/role/elb=1`, which Auto Mode requires before it places an
-  internet-facing load balancer; the tag is removed on destroy.
+  internet-facing load balancer. `terraform destroy` removes the tag again,
+  so a subnet the caller also uses for something else loses it too.
 - **External Secrets Operator**: an IAM role that may only
   `secretsmanager:GetSecretValue` on `secret:<secrets_prefix>*` in this
-  account and region, bound by EKS Pod Identity to
+  account and region, assumable only by Pod Identity acting for this account
+  (`aws:SourceAccount`), bound by EKS Pod Identity to
   `<eso_namespace>/<eso_service_account>`. The ServiceAccount carries no
   annotation, so the operator's chart stays cloud-neutral.
 
-The EKS module also creates a KMS key for secret encryption and a CloudWatch
-log group for the control plane; both go with the stack.
+- **No customer KMS key**: Kubernetes secrets keep EKS's default envelope
+  encryption with an AWS-owned key. A customer key costs a monthly fee and,
+  after every teardown, waits 7 to 30 days pending deletion; the default
+  needs neither.
+- **No control plane logs by default**, and so no log group. With
+  `control_plane_logs` set, the module creates the group with
+  `control_plane_log_retention_days` (7) of retention, so EKS does not
+  create one that keeps logs forever.
 
 ## Versions, and why
 
@@ -155,12 +188,24 @@ refuses (network-reqs).
 ## Not verified
 
 - No `apply` has run: nothing here has created a cluster yet. `validate` and
-  a read-only `plan` (59 resources with the GPU pool) are what was checked.
+  a read-only `plan` (58 resources with the GPU pool and two ECR
+  repositories) are what was checked.
 - That the Gateway API CRDs exist the moment the cluster update reports
   `Successful`. If they lag, the GatewayClass apply fails; apply again.
-- That the `default` NodeClass places nodes in the cluster's (public)
-  subnets with a public IP. The AWS pages say the NodeClass follows the
-  subnet's `MapPublicIpOnLaunch`; not seen on a live cluster.
+- That NodeClass `base` launches nodes that join: it reuses the node role
+  whose access entry EKS creates (create-node-class says so), and the
+  cluster primary security group, which is what Auto Mode's `default`
+  NodeClass is understood to use; neither seen on a live cluster.
+- That Auto Mode's EBS driver honours `tagSpecification_<n>` on the
+  StorageClass. It is the self-managed EBS CSI driver's parameter; the Auto
+  Mode StorageClass page does not list it. If ignored, volumes are untagged
+  and the cost report cannot attribute them.
+- Two risks of `enable-gateway-api.sh`: (1) that `describe-cluster` prints
+  `True` for the managed setting under `--output text` (if it prints
+  something else, the script calls `update-cluster-config` again, which EKS
+  may refuse as "no changes"); (2) that `list-updates` reports an update
+  started by Terraform's own `aws_eks_cluster` changes as `InProgress`
+  before this script runs, rather than starting just after it.
 - Whether External Secrets Operator needs more than `GetSecretValue` (for
   instance `DescribeSecret`) for the stores the instance writes.
 

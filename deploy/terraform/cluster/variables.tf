@@ -25,6 +25,24 @@ variable "kubernetes_version" {
   default     = "1.36"
 }
 
+variable "endpoint_public_access_cidrs" {
+  description = "CIDR blocks that may reach the Kubernetes API's public endpoint."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "control_plane_logs" {
+  description = "Control plane log types sent to CloudWatch (api, audit, authenticator, controllerManager, scheduler). Empty sends none and creates no log group."
+  type        = list(string)
+  default     = []
+}
+
+variable "control_plane_log_retention_days" {
+  description = "Days CloudWatch keeps the control plane logs, when control_plane_logs is not empty."
+  type        = number
+  default     = 7
+}
+
 variable "vpc_id" {
   description = "VPC of the cluster. Null means the region's default VPC."
   type        = string
@@ -52,6 +70,17 @@ variable "cpu_pool_cpu_limit" {
   description = "Most vCPUs the arm64 CPU node pool may run at once."
   type        = number
   default     = 32
+}
+
+variable "cpu_pool_consolidation" {
+  description = "Karpenter consolidationPolicy of the arm64 pool. WhenEmpty never moves pods off a busy node (no reshuffle in the middle of a demo); WhenEmptyOrUnderutilized packs nodes tighter."
+  type        = string
+  default     = "WhenEmpty"
+
+  validation {
+    condition     = contains(["WhenEmpty", "WhenEmptyOrUnderutilized"], var.cpu_pool_consolidation)
+    error_message = "cpu_pool_consolidation must be WhenEmpty or WhenEmptyOrUnderutilized."
+  }
 }
 
 variable "gpu_node_pool" {
