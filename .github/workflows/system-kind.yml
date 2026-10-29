@@ -123,8 +123,9 @@ jobs:
 
       # Each tool pinned by version and by the sha256 of its release file.
       # helm and kubeconform: the same pins as gate.yml. kubectl, docker and
-      # the shasum the harness uses come with the runner.
-      - name: Install kind, helm, helmfile, kubeconform and cloud-provider-kind
+      # the shasum the harness uses come with the runner; cloud-provider-kind
+      # is a container k8s-up.sh starts, its image pinned by digest there.
+      - name: Install kind, helm, helmfile and kubeconform
         env:
           KIND_VERSION: 0.33.0
           KIND_SHA256: aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d
@@ -134,8 +135,6 @@ jobs:
           KUBECONFORM_SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
           HELMFILE_VERSION: 1.8.2
           HELMFILE_SHA256: f179485c5bb9f8e20fbd8ea16d8807915988aba4d60131ee864fb3232452716e
-          CPK_VERSION: 0.12.0
-          CPK_SHA256: 5716aca8f01a85172c12f3b6329c70f151bec02c91b6f600c9f230845ee138e6
         run: |
           set -euo pipefail
           bin="$HOME/.local/bin"
@@ -155,9 +154,6 @@ jobs:
           fetch "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" \
             "$HELMFILE_SHA256" helmfile.tgz
           tar -xzf "$RUNNER_TEMP/helmfile.tgz" -C "$bin" helmfile
-          fetch "https://github.com/kubernetes-sigs/cloud-provider-kind/releases/download/v${CPK_VERSION}/cloud-provider-kind_${CPK_VERSION}_linux_amd64.tar.gz" \
-            "$CPK_SHA256" cpk.tgz
-          tar -xzf "$RUNNER_TEMP/cpk.tgz" -C "$bin" cloud-provider-kind
           echo "$bin" >> "$GITHUB_PATH"
 
       # k8s-test.sh validates every answer with schemas/validate.py; the
@@ -226,7 +222,7 @@ jobs:
               kc -n "$ns" describe pod "$pod" > "$out/describe-$ns-$pod.txt" 2>&1
               kc -n "$ns" logs "$pod" --all-containers --tail=500 > "$out/logs-$ns-$pod.txt" 2>&1
             done
-          cp "${XDG_CACHE_HOME:-$HOME/.cache}/base-kind/cloud-provider-kind.log" "$out/" 2>/dev/null || true
+          docker logs kind-cloud-provider > "$out/cloud-provider-kind.log" 2>&1
           # A log may still print a secret: every .env value of 8 characters
           # or more becomes *** in every file, matched as a fixed string.
           # No .env means the run stopped before any secret reached the
