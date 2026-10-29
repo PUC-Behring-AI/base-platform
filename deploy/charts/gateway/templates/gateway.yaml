@@ -1,0 +1,24 @@
+# The cluster's one entry point, as deploy/kind/gateway.yaml is on kind:
+# Gateway `base`, in the release's namespace (edge). Only routes from a
+# namespace labelled base.layer=interface attach to it (the interface chart's
+# HTTPRoute).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: base
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  gatewayClassName: {{ required "className is required" .Values.className }}
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              base.layer: interface

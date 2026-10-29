@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gateway
+description: The cluster's one entry point, Gateway base in namespace edge, of a GatewayClass by name
+type: application
+version: 0.9.0
+appVersion: "0.9.0"

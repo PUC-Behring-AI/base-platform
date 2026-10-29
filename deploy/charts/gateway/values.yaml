@@ -1,0 +1,4 @@
+# GatewayClass of the Gateway: the managed cluster's (deploy/terraform/cluster
+# output gateway_class). On kind, scripts/k8s-up.sh applies deploy/kind/
+# gateway.yaml instead, of class cloud-provider-kind.
+className: base-alb

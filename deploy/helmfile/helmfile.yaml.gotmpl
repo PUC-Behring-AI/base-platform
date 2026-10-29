@@ -1,4 +1,5 @@
-# The whole base as Helm releases, for scripts/k8s-up.sh (ADAPTATION §10).
+# The whole base as Helm releases, for scripts/k8s-up.sh on kind and for an
+# instance's own install on the managed cluster (ADAPTATION §10).
 #
 # This file holds what every deployment shares: which releases exist, in
 # which namespace, in which order, and how they are wired to each other (the
@@ -8,10 +9,22 @@
 # values/<environment>/<release>.yaml, both required for each layer release
 # (an empty file is fine).
 #
-# Read from the environment, which k8s-up.sh sets:
+# Two environments:
+#   kind  the local cluster k8s-up.sh makes, which applies the edge Gateway
+#         and the StorageClass itself (deploy/kind/)
+#   eks   the managed cluster (deploy/terraform/cluster), which makes the
+#         StorageClass; the edge Gateway is release edge/gateway here, of
+#         GatewayClass `gatewayClass` (default base-alb, the module's output
+#         gateway_class; --state-values-set gatewayClass=<name> for another).
+#         After values/eks/<release>.yaml, each layer release also takes
+#         <instance>/eks/.generated/<release>.yaml when that file exists: the
+#         instance's images pinned by digest, written by its push step.
+#
+# Read from the environment, which k8s-up.sh sets on kind:
 #   BASE_ROOT          the directory that holds the base-* checkouts
 #   K8S_INSTANCE_DIR   the instance directory
 #   KIND_NETWORK_CIDR  the kind docker network, where the Gateway's proxy runs
+#                      (kind only)
 #
 # Order (`needs`): inference-db -> inference -> knowledge -> agents ->
 # interface, each after its namespace's schemas; interface also after its
@@ -34,6 +47,9 @@
 
 environments:
   kind: {}
+  eks:
+    values:
+      - gatewayClass: base-alb
 ---
 {{- $base := requiredEnv "BASE_ROOT" }}
 {{- $instance := requiredEnv "K8S_INSTANCE_DIR" }}
@@ -44,6 +60,13 @@ environments:
 {{- $baseReleases := list "schemas" "interface-accounts-db" "inference-db" "inference" "knowledge" "agents" "interface" }}
 {{- $fields := list "name" "namespace" "chart" "values" "needs" "neededBy" }}
 {{- $extra := list }}
+{{- $overlay := dict }}
+{{- if eq $env "eks" }}
+{{- range $layers }}
+{{- $file := printf "%s/eks/.generated/%s.yaml" $instance . }}
+{{- if isFile $file }}{{ $_ := set $overlay . $file }}{{ end }}
+{{- end }}
+{{- end }}
 {{- $releasesFile := printf "%s/releases.yaml" $instance }}
 {{- if isFile $releasesFile }}
 {{- $doc := readFile $releasesFile | fromYaml }}
@@ -141,6 +164,9 @@ releases:
           host: inference-db
       - {{ $instance }}/values/common/inference.yaml
       - {{ $instance }}/values/{{ $env }}/inference.yaml
+{{- with index $overlay "inference" }}
+      - {{ . }}
+{{- end }}
 
   - name: knowledge
     namespace: knowledge
@@ -149,6 +175,9 @@ releases:
     values:
       - {{ $instance }}/values/common/knowledge.yaml
       - {{ $instance }}/values/{{ $env }}/knowledge.yaml
+{{- with index $overlay "knowledge" }}
+      - {{ . }}
+{{- end }}
 
   - name: agents
     namespace: agents
@@ -157,11 +186,14 @@ releases:
     values:
       - {{ $instance }}/values/common/agents.yaml
       - {{ $instance }}/values/{{ $env }}/agents.yaml
+{{- with index $overlay "agents" }}
+      - {{ . }}
+{{- end }}
 
   - name: interface
     namespace: interface
     chart: {{ $base }}/base-interface/deploy/chart
-    needs: [interface/interface-accounts-db, agents/agents{{ range index $neededBy "interface" }}, {{ . }}{{ end }}]
+    needs: [interface/interface-accounts-db, agents/agents{{ if eq $env "eks" }}, edge/gateway{{ end }}{{ range index $neededBy "interface" }}, {{ . }}{{ end }}]
     values:
       - secrets:
           existingSecret: k8s-secrets
@@ -179,6 +211,17 @@ releases:
 {{- end }}
       - {{ $instance }}/values/common/interface.yaml
       - {{ $instance }}/values/{{ $env }}/interface.yaml
+{{- with index $overlay "interface" }}
+      - {{ . }}
+{{- end }}
+{{- if eq $env "eks" }}
+
+  - name: gateway
+    namespace: edge
+    chart: ../charts/gateway
+    values:
+      - className: {{ .Values.gatewayClass }}
+{{- end }}
 {{- range $extra }}
 
   - name: {{ .name }}
