@@ -680,6 +680,36 @@ at 2.9 GiB in `docker stats`. Run again on the live cluster, `k8s-up.sh` took
 28 s, upgraded every release to revision 2, and the interface's migration hook
 ran once more and found the schema already at its version.
 
+The same test runs in CI: `.github/workflows/system-kind.yml`, a reusable
+workflow, checks out the five base repositories side by side at `base_ref`,
+installs kind, helm, helmfile, kubeconform and cloud-provider-kind pinned by
+sha256, then runs `k8s-up.sh` and `k8s-test.sh` on the instance directory; on
+failure it uploads `kubectl get all -A`, the events, and the describe and logs
+of every pod not ready as the artifact `cluster-state`. An instance calls it
+from its own workflow:
+
+```yaml
+jobs:
+  system-kind:
+    uses: PUC-Behring-AI/base-platform/.github/workflows/system-kind.yml@vX.Y.Z
+    with:
+      base_ref: vX.Y.Z
+      instance_path: deploy/kind            # its <instance-dir>
+      instance_repository: owner/name       # the repository that holds it
+    secrets: inherit                        # HARMONY_KEY_*, and instance_env
+```
+
+Like harmony it needs the variable `HARMONY_SIBLINGS` and a deploy key
+`HARMONY_KEY_<NAME>` per sibling. Secret `instance_env` is the instance's
+`.env`; without it each key of `.env.example` gets a throwaway value. On a
+pull request to base-platform it runs when `deploy/`, `scripts/k8s-*` or the
+workflow changes.
+
+The first green run, on 2026-10-29 on a GitHub-hosted `ubuntu-latest`
+runner (2 vCPU, 7 GB, amd64) with the reference instance and no build cache:
+the job took 5 min 16 s, of which `k8s-up.sh` from no cluster (building every
+image) 235 s and `k8s-test.sh` 58 s, all five checks passing.
+
 ### The managed cluster
 
 `deploy/terraform/` holds two Terraform modules for EKS; an instance calls
