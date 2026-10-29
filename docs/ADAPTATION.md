@@ -635,6 +635,12 @@ Every answer validates against the C3 envelope; a key the file does not
 know is refused, so a typo never turns a check off. The reference instance
 runs `echo` and a knowledge search that may return no passage.
 
+Measured on 2026-10-28 on the same Mac, with the reference instance's
+`knowledge-store` added and the images in Docker's build cache: `k8s-up.sh`
+from no cluster took 178 s (the store installed before `knowledge`),
+`k8s-test.sh` 59 s with all five checks passing, `k8s-up.sh` again on the
+live cluster 36 s, and `k8s-down.sh --delete` 7 s.
+
 `deploy/helmfile/helmfile.yaml.gotmpl` holds what every deployment shares:
 `schemas` in each layer namespace, the stores `interface-accounts-db` and
 `inference-db` (base-platform's postgres chart, wired to the Secret key and
