@@ -6,7 +6,7 @@ module, so the two have separate state:
 | Module | What it creates | Lifetime |
 |---|---|---|
 | `persistent/` | ECR repositories with a lifecycle policy, the backups bucket (versioned, encrypted, private, old versions expire), a monthly and a daily cost budget | created once, never destroyed (`prevent_destroy` on the repositories and the bucket) |
-| `cluster/` | EKS Auto Mode cluster, the arm64 and optional GPU node pools, StorageClass `base-rwo`, GatewayClass `base-alb`, network policy enforcement, External Secrets Operator's Pod Identity role | the stack teardown destroys |
+| `cluster/` | EKS Auto Mode cluster, the arm64 and optional GPU node pools, StorageClass `base-rwo`, GatewayClass `base-alb`, network policy enforcement, External Secrets Operator's Pod Identity role, and optionally one ServiceAccount's Bedrock role | the stack teardown destroys |
 
 Nothing here installs an application: helmfile installs the charts, on this
 cluster as on kind (docs/ADAPTATION.md §10). Nothing here names an account,
@@ -60,10 +60,12 @@ it stays silent exactly when it should warn.
 | `eso_namespace` | string | `"external-secrets"` |
 | `eso_service_account` | string | `"external-secrets"` |
 | `secrets_prefix` | string | — non-empty, no `*` |
+| `bedrock_access` | object({namespace, service_account, model_arns = list(string)}) | `null` → no Bedrock role; `model_arns` non-empty full ARNs, no `*` |
 
 Outputs: `cluster_name`, `cluster_endpoint`,
 `cluster_certificate_authority_data`, `oidc_issuer`, `storage_class`
-(`base-rwo`), `gateway_class` (`base-alb`), `eso_role_arn`.
+(`base-rwo`), `gateway_class` (`base-alb`), `eso_role_arn`, `bedrock_role_arn`
+(null without `bedrock_access`).
 
 ## Providers
 
@@ -159,6 +161,17 @@ must also export credentials for that role before `apply`.
   (`aws:SourceAccount`), bound by EKS Pod Identity to
   `<eso_namespace>/<eso_service_account>`. The ServiceAccount carries no
   annotation, so the operator's chart stays cloud-neutral.
+- **Bedrock** (when `bedrock_access` is set): role `<name>-bedrock`, with the
+  same Pod Identity trust, that may only `bedrock:InvokeModel` and
+  `bedrock:InvokeModelWithResponseStream` on exactly `model_arns`, bound to
+  `<namespace>/<service_account>` (an inference gateway's, say). No static
+  AWS key exists anywhere. A cross-region inference profile (a model id
+  `us.<model>`) is authorized on the profile **and** on the foundation model
+  in every region it routes to, so the caller lists all of them:
+  `arn:aws:bedrock:<region>:<account>:inference-profile/us.<model>` and
+  `arn:aws:bedrock:<each routed region>::foundation-model/<model>` (the
+  profile's routed regions: `aws bedrock get-inference-profile`). A missing
+  region fails only the requests the profile happens to route there.
 
 - **No customer KMS key**: Kubernetes secrets keep EKS's default envelope
   encryption with an AWS-owned key. A customer key costs a monthly fee and,
@@ -224,13 +237,18 @@ refuses (network-reqs).
   before this script runs, rather than starting just after it.
 - Whether External Secrets Operator needs more than `GetSecretValue` (for
   instance `DescribeSecret`) for the stores the instance writes.
+- The Bedrock role against Bedrock: that `InvokeModel` and
+  `InvokeModelWithResponseStream` on the profile and foundation-model ARNs
+  are enough for a client's Converse calls, and that Pod Identity
+  credentials reach the gateway's SDK. Only the mocked plan is tested.
 
 ## Checks
 
 `tests/test_terraform.py` runs `terraform fmt -check`, and per module
 `terraform init -backend=false -lockfile=readonly`, `terraform validate` and
 `terraform test` (cluster/tests renders the GatewayClass and its
-LoadBalancerConfiguration with every provider mocked: no AWS, no cluster),
+LoadBalancerConfiguration, and the Bedrock role's policy and Pod Identity
+association, with every provider mocked: no AWS, no cluster),
 and refuses an account id, a region outside a variable default, or an
 instance name in these files. The gate workflow installs a pinned Terraform
 for it.

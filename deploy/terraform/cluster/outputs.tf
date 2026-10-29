@@ -32,3 +32,8 @@ output "eso_role_arn" {
   description = "IAM role External Secrets Operator assumes through Pod Identity."
   value       = aws_iam_role.eso.arn
 }
+
+output "bedrock_role_arn" {
+  description = "IAM role the bedrock_access ServiceAccount assumes through Pod Identity; null without bedrock_access."
+  value       = var.bedrock_access == null ? null : aws_iam_role.bedrock[0].arn
+}

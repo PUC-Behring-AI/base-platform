@@ -133,3 +133,23 @@ variable "secrets_prefix" {
     error_message = "secrets_prefix must be a non-empty name prefix without '*': an empty one would let the operator read every secret in the account."
   }
 }
+
+variable "bedrock_access" {
+  description = <<-EOT
+    One ServiceAccount allowed to call Amazon Bedrock through EKS Pod Identity: bedrock:InvokeModel and bedrock:InvokeModelWithResponseStream on exactly model_arns. Null creates no role.
+    A cross-region inference profile (a model id such as us.<model>) needs the profile's ARN and the foundation-model ARN in every region the profile routes to: list them all, e.g.
+      arn:aws:bedrock:<region>:<account>:inference-profile/us.<model>
+      arn:aws:bedrock:<each routed region>::foundation-model/<model>
+  EOT
+  type = object({
+    namespace       = string
+    service_account = string
+    model_arns      = list(string)
+  })
+  default = null
+
+  validation {
+    condition     = var.bedrock_access == null || try(length(var.bedrock_access.model_arns) > 0 && alltrue([for a in var.bedrock_access.model_arns : startswith(a, "arn:") && !strcontains(a, "*")]), false)
+    error_message = "bedrock_access.model_arns must list at least one full ARN, none with '*': the role grants exactly the models listed."
+  }
+}
