@@ -665,12 +665,19 @@ socket mounted), not as a host process, so the harness needs no traffic from
 a container to the host. The proxy gets its routes from cloud-provider-kind's
 xDS server, which listens on the first network address of wherever
 cloud-provider-kind runs; run on the Mac itself that is the LAN address, and
-on 2026-10-29 a Mac whose containers could no longer reach its own LAN
-address (with or without a VPN) left the proxy without configuration and
-reset every request through the Gateway (base-platform#101). On the kind
+on 2026-10-29, on a Mac whose containers could not reach its LAN address
+(what on the host changed was not found), the proxy got no configuration and
+every request through the Gateway was reset (base-platform#101). On the kind
 network that address is a peer of the proxy's. `k8s-up.sh` refuses to start
 when cloud-provider-kind already runs outside its container, since two would
-race for the same Gateways; `k8s-down.sh --delete` removes the container.
+race for the same Gateways; it reuses the container only while it runs and is
+not restarting. The container restarts with Docker; `k8s-down.sh --delete`
+removes it, and `kind delete cluster` alone leaves it running. It mounts the
+Docker socket at its standard path, `/var/run/docker.sock` (a rootless Docker,
+Colima or a remote `DOCKER_HOST` is not handled), which is root-equivalent
+control of the host's Docker: with the image pinned by digest, that is fine on
+one's own machine or a CI runner, and the harness is not meant for a shared or
+multi-tenant Docker host.
 
 `k8s-images.sh` builds every image for the node's architecture and refuses
 one that comes out otherwise, and refuses a public image whose index has no

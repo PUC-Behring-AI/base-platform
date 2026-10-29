@@ -51,7 +51,8 @@ GATEWAY_API_SHA256=24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063
 NAMESPACES="interface agents knowledge inference edge"
 LAYERS="interface knowledge agents inference"
 # cloud-provider-kind v0.12.0, the index for linux/amd64 and linux/arm64,
-# digest checked with `docker buildx imagetools inspect` on 2026-10-29.
+# digest checked with `docker buildx imagetools inspect` on 2026-10-29. Both
+# images set no User, so it runs as root and can use the mounted socket.
 CPK=kind-cloud-provider
 CPK_IMAGE=registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v0.12.0@sha256:1b97632e5dfec8f83c7e970cf18cedb9e6b707e272011d712cabf6ab59d323c9
 
@@ -112,7 +113,7 @@ done
 [ "$no_chart" -eq 0 ] || die "set BASE_ROOT to the directory that holds the base-* checkouts"
 
 step "tools"
-for tool in kind kubectl helm helmfile docker curl shasum; do
+for tool in kind kubectl helm helmfile docker curl shasum pgrep; do
     command -v "$tool" >/dev/null || die "$tool is not installed"
 done
 
@@ -177,7 +178,8 @@ step "cloud-provider-kind"
 # the machine, so a running one of this image is used, not doubled; a host
 # process would race it for the same Gateways, and is refused (checked once
 # no container of ours runs: on Linux a container's process shows on the host).
-if [ "$(docker inspect -f '{{.State.Running}} {{.Config.Image}}' "$CPK" 2>/dev/null || true)" = "true $CPK_IMAGE" ]; then
+# Reused only when running and not in a restart loop.
+if [ "$(docker inspect -f '{{.State.Running}} {{.State.Restarting}} {{.Config.Image}}' "$CPK" 2>/dev/null || true)" = "true false $CPK_IMAGE" ]; then
     echo "already running: container $CPK"
 else
     docker rm -f "$CPK" >/dev/null 2>&1 || true
@@ -186,6 +188,11 @@ else
     fi
     # No sudo: port mapping publishes the Gateway on localhost instead of
     # assigning its address to the host (which is what wants sudo on macOS).
+    # The Docker socket at its standard path (not rootless, Colima or a remote
+    # DOCKER_HOST) gives it root-equivalent control of this Docker: a harness
+    # for one's own machine, not a shared Docker host. unless-stopped: it
+    # comes back after Docker restarts, as the cluster's node does; only
+    # k8s-down.sh --delete removes it, `kind delete cluster` leaves it running.
     echo "starting: container $CPK, cloud-provider-kind --enable-lb-port-mapping=true (log: docker logs $CPK)"
     docker run -d --restart=unless-stopped --name "$CPK" --network kind \
         -v /var/run/docker.sock:/var/run/docker.sock \

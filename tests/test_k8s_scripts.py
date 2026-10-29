@@ -325,7 +325,7 @@ def test_up_runs_cloud_provider_kind_on_the_kind_network(tmp_path):
 def test_up_reuses_a_running_cloud_provider_kind(tmp_path):
     docker = (
         'case "$*" in *"{{.Config.Image}}"*kind-cloud-provider) '
-        f'echo "true {CPK_IMAGE}";; esac'
+        f'echo "true false {CPK_IMAGE}";; esac'
     )
     result, log = _up_through_cpk(tmp_path, docker)
     assert "no IPv4 subnet" in result.stderr, result.stderr
@@ -333,10 +333,25 @@ def test_up_reuses_a_running_cloud_provider_kind(tmp_path):
     assert not [c for c in log if "kind-cloud-provider" in c and c.split()[1] in ("run", "rm")], log
 
 
+def test_up_replaces_a_restarting_cloud_provider_kind(tmp_path):
+    # A crash loop shows Running true and Restarting true: not reused. The
+    # stub answers whichever fields are asked, as docker would.
+    docker = (
+        'case "$*" in *"{{.State.Restarting}}"*kind-cloud-provider) '
+        f'echo "true true {CPK_IMAGE}";; *"{{{{.Config.Image}}}}"*kind-cloud-provider) '
+        f'echo "true {CPK_IMAGE}";; esac'
+    )
+    result, log = _up_through_cpk(tmp_path, docker)
+    assert "no IPv4 subnet" in result.stderr, result.stderr
+    rm = log.index("docker rm -f kind-cloud-provider")
+    assert rm < next(i for i, c in enumerate(log) if c.startswith("docker run") and CPK_IMAGE in c)
+
+
 def test_up_replaces_a_cloud_provider_kind_of_another_image(tmp_path):
     docker = (
         'case "$*" in *"{{.Config.Image}}"*kind-cloud-provider) '
-        'echo "true registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v0.11.0";; esac'
+        'echo "true false registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v0.11.0";;'
+        " esac"
     )
     result, log = _up_through_cpk(tmp_path, docker)
     assert "no IPv4 subnet" in result.stderr, result.stderr
