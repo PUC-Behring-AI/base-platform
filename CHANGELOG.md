@@ -19,17 +19,6 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
-### Added
-
-- **An instance's own releases on the kind harness** (#91): an optional `<instance-dir>/releases.yaml` adds releases of base charts on the helmfile's allow-list (`postgres`), each installed after its namespace's `schemas` and before the layers it names in `neededBy`, so one cold `scripts/k8s-up.sh` brings the instance up. A chart off the list, an unknown key, a bad name or `needs`, or a missing values file is refused before the cluster is touched. The reference instance declares `knowledge-store` as the example.
-- **`scripts/k8s-registry.sh`** (#92): starts the kind registry `localhost:5001` idempotently; `k8s-up.sh` runs it before the cluster, and an instance may run it first and build with `--push localhost:5001`.
-- **An instance's system test** (#93): `<instance-dir>/system-test.yaml` lists the flows `scripts/k8s-test.sh` runs through the Gateway (input, expected status, body schema, outcome, saved values, job timeout) and an optional C1 knowledge search; `scripts/k8s_system_test.py` reads and runs it. The reference instance keeps `echo`.
-
-### Changed
-
-- **`BREAKING`: `scripts/k8s-test.sh` takes `<instance-dir>`, which must hold a `system-test.yaml`** (#93). An instance that ran it with no argument adds the file (the reference instance's is the minimal example) and passes its directory.
-- The reference instance's `.env.required` gains `KNOWLEDGE_STORE_PASSWORD` (namespace `knowledge`), for `knowledge-store`: an existing `deploy/helmfile/reference-instance/.env` needs the line. Not `BREAKING`: it concerns only running the base alone, not an instance.
-
 ## [0.9.0] — 2026-10-29
 
 ### Added
@@ -39,6 +28,9 @@ minor carries breaking changes.
 - **`deploy/charts/schemas` and `deploy/charts/postgres`**: the contract schemas as a chart, and a small Postgres the layers use as their stores.
 - **A local kind harness and a system test** (#83): `scripts/k8s-up.sh`, `k8s-test.sh` and `k8s-down.sh` bring the whole base up on a local kind cluster, test it end to end and remove it.
 - **The gate's chart step**: `scripts/gate.sh` lints, renders and validates (kubeconform) every `deploy/chart` or `deploy/charts/<name>`, and stops parsing chart templates as YAML. CI installs the pinned `helm` and `kubeconform`.
+- **An instance's own releases on the kind harness** (#91): an optional `<instance-dir>/releases.yaml` adds releases of base charts on the helmfile's allow-list (`postgres`), each installed after its namespace's `schemas` and before the layers it names in `neededBy`, so one cold `scripts/k8s-up.sh` brings the instance up. A chart off the list, an unknown key, a bad name or `needs`, or a missing values file is refused before the cluster is touched. The reference instance declares `knowledge-store` as the example.
+- **`scripts/k8s-registry.sh`** (#92): starts the kind registry `localhost:5001` idempotently; `k8s-up.sh` runs it before the cluster, and an instance may run it first and build with `--push localhost:5001`.
+- **An instance's system test** (#93): `<instance-dir>/system-test.yaml` lists the flows `scripts/k8s-test.sh` runs through the Gateway (input, expected status, body schema, outcome, saved values, job timeout) and an optional C1 knowledge search; `scripts/k8s_system_test.py` reads and runs it. The reference instance keeps `echo`.
 
 ### Changed
 
@@ -50,6 +42,9 @@ minor carries breaking changes.
   - `docs/ADAPTATION.md` §4 gains *Sockets and modules*, and its interface bullet says how a UI module is composed (lazy routes, one React); §5 sends domain code to modules.
   - `AGENTS-base.md` 1.5 adds *Base, sockets and modules*: which kind of repository an agent is in, and what each may contain.
   - Not `BREAKING`: no contract and no engine changes. An instance whose interface already holds its screens in `src/instance/` keeps building; ADR-014 says where those screens belong.
+
+- **`BREAKING`: `scripts/k8s-test.sh` takes `<instance-dir>`, which must hold a `system-test.yaml`** (#93). An instance that ran it with no argument adds the file (the reference instance's is the minimal example) and passes its directory.
+- The reference instance's `.env.required` gains `KNOWLEDGE_STORE_PASSWORD` (namespace `knowledge`), for `knowledge-store`: an existing `deploy/helmfile/reference-instance/.env` needs the line. Not `BREAKING`: it concerns only running the base alone, not an instance.
 
 ## [0.8.0] — 2026-10-21
 
