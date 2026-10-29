@@ -780,8 +780,12 @@ Gateway is release `edge/gateway` (chart `deploy/charts/gateway`), of the
 GatewayClass in state value `gatewayClass`, default `base-alb`, and the
 interface waits for it. And nothing kind-only is rendered: no local-path
 StorageClass (the cluster module makes `base-rwo`), no interface `ipBlock`
-for kind's network (an instance that keeps the edge's NetworkPolicy names
-the load balancer's source, its VPC, in `values/eks/interface.yaml`).
+for kind's network. The instance names the load balancer's source, its
+VPC's CIDR, as the interface's `edge.allowFrom` (in `values/{common,eks}/
+interface.yaml` or the generated overlay); without it the render fails,
+since the edge's NetworkPolicy would admit nothing and the site would be
+unreachable after a green sync. A release of the instance's own named
+`gateway` is refused, as any other base release name.
 
     BASE_ROOT=<dir of the base-* checkouts> K8S_INSTANCE_DIR=<instance-dir> \
         helmfile -f deploy/helmfile/helmfile.yaml.gotmpl -e eks \

@@ -36,6 +36,8 @@ def _eks_instance(tmp_path: Path) -> Path:
     inst = tmp_path / "instance"
     shutil.copytree(REFERENCE, inst)
     shutil.copytree(inst / "values" / "kind", inst / "values" / "eks")
+    with (inst / "values" / "eks" / "interface.yaml").open("a") as f:
+        f.write("edge:\n  allowFrom:\n    - ipBlock: {cidr: 10.0.0.0/16}\n")
     return inst
 
 
@@ -178,3 +180,50 @@ def test_eks_renders_without_kind_only_objects(tmp_path):
     assert "172.18.0.0/16" not in result.stdout
     # The overlay reached the knowledge image.
     assert f"@{digest}" in result.stdout
+
+
+@needs_helmfile
+@pytest.mark.parametrize("edge", ["", "edge: {allowFrom: []}\n"])
+def test_eks_refuses_an_interface_edge_nothing_can_reach(tmp_path, edge):
+    inst = _eks_instance(tmp_path)
+    shutil.copy(inst / "values" / "kind" / "interface.yaml", inst / "values" / "eks")
+    with (inst / "values" / "eks" / "interface.yaml").open("a") as f:
+        f.write(edge)
+    result = _helmfile(inst, "list")
+    assert result.returncode != 0
+    assert "eks: no edge.allowFrom in" in result.stderr, result.stderr
+
+
+@needs_helmfile
+def test_eks_takes_edge_allow_from_from_the_overlay(tmp_path):
+    inst = _eks_instance(tmp_path)
+    shutil.copy(inst / "values" / "kind" / "interface.yaml", inst / "values" / "eks")
+    generated = inst / "eks" / ".generated"
+    generated.mkdir(parents=True)
+    (generated / "interface.yaml").write_text(
+        "edge: {allowFrom: [{ipBlock: {cidr: 10.0.0.0/16}}]}\n"
+    )
+    result = _helmfile(inst, "list")
+    assert result.returncode == 0, result.stderr
+
+
+@needs_helmfile
+@pytest.mark.parametrize("env", ["kind", "eks"])
+def test_instance_release_named_gateway_refused(tmp_path, env):
+    inst = _eks_instance(tmp_path)
+    (inst / "releases.yaml").write_text(
+        yaml.safe_dump(
+            {"releases": [{"name": "gateway", "namespace": "edge", "chart": "postgres"}]}
+        )
+    )
+    environ = {"KIND_NETWORK_CIDR": "172.18.0.0/16"} if env == "kind" else {}
+    os_env = dict(os.environ, BASE_ROOT=str(_base_root()), K8S_INSTANCE_DIR=str(inst), **environ)
+    result = subprocess.run(
+        ["helmfile", "-f", str(HELMFILE), "-e", env, "list"],
+        capture_output=True,
+        text=True,
+        env=os_env,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "release gateway: the base already has a release by that name" in result.stderr
