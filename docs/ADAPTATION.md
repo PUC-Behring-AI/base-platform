@@ -424,6 +424,21 @@ combination fulfils the version and was tested against itself — which is what
 an instance pinning it needs. Until the tag exists, the version is
 unreleased, however far `VERSION` has moved.
 
+**What a tag ships.** `scripts/publish-release.sh vX.Y.Z` builds, from
+`git archive` of the tag and never from a working tree, each engine's chart
+(`helm package`) and engine image (one gzipped `docker` tar per platform,
+`linux/arm64` and `linux/amd64` by default), with a `manifest.json` and a
+`SHA256SUMS` per repository, and writes `lock.sha256`: one sha256 per file,
+under the header `# base vX.Y.Z`, for an instance to pin. With `--upload` it
+attaches them to the tag's GitHub Release in base-knowledge, base-inference,
+base-agents and base-interface, creating the release with that version's
+`CHANGELOG.md` section as its notes; base-platform's release gets nothing.
+It refuses a missing or lightweight tag, a local tag that is not origin's, and
+a `VERSION` or `Chart.yaml` version at the tag other than X.Y.Z. An asset
+already attached is skipped when its digest matches and refused when it
+differs, unless `--replace`. An instance can then run a tagged base from these
+files, without a clone of any engine.
+
 0.3.0 and 0.4.0 were never tagged. The first tag after 0.2.0 is 0.5.0.
 
 ## 8. Upgrading
