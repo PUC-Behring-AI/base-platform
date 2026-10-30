@@ -9,6 +9,11 @@ name: nightly-harmony
 # caller's run fail to start, since a called workflow cannot ask for more
 # than its caller grants.
 #
+# A scheduled run carries no event payload, and harmony.yml reads
+# github.event.repository.name from it; a workflow_dispatch run does carry
+# the repository. So on `schedule` the only job re-dispatches this same file,
+# and the dispatched run does the work (one file, no second workflow).
+#
 # A red run opens one issue, or comments on the open one.
 
 on:
@@ -20,7 +25,20 @@ permissions:
   contents: read
 
 jobs:
+  dispatch:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the run that does the work
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run nightly-harmony.yml --ref main
+
   harmony:
+    if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/harmony.yml
     secrets: inherit
 
