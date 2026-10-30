@@ -552,3 +552,44 @@ exists to prevent, one level down.
   its own, as harmony reads private siblings (ADAPTATION §3).
 - No engine change was needed: `base_<layer>.modules` and `defineInstance`
   already accept code from another package. `ADAPTATION.md` §4 says how.
+
+---
+
+## ADR-015: A knowledge module may mount its own routes, outside C1, until C8
+
+**Context.** C1 is the one way evidence leaves the knowledge layer, and every
+passage it returns carries a classification stamped by the engine (ADR-012,
+ADR-014). A module sometimes has to offer the agents layer something that is not
+a passage: a computation, a lookup, an operation over its own data. There is no
+contract for that yet.
+
+**Decision.** A knowledge module may define an optional `routes()` method that
+returns an ASGI application. The engine mounts it at `/v1/modules/<name>` after
+the instance loads. The engine requires a uuid `X-Request-Id` on every call
+under that prefix, with the same refusal as C1, and carries it into the C7
+context so the module's embedding calls are attributed to the request. A module
+without `routes()` is unchanged.
+
+These routes are **outside C1's classification stamp**: the engine does not
+classify what they return, and the module answers for it. They are reachable
+only from the agents layer, by the NetworkPolicy that already isolates the
+knowledge layer. The mechanism is **transitional**: it is replaced by a
+contract, C8 (base-knowledge#40), and a module's routes move onto it then.
+
+**Alternative discarded.** Stamp every response of a module's routes. The engine
+cannot: it does not know the shape of what a module returns, and a stamp it
+invented would claim a classification nobody decided.
+
+**What that would have cost.** Either a stamp that looks like a guarantee and is
+not, or a module forced to disguise its output as passages. The first is a
+security claim without a check behind it; the second pushes the module into
+contortions that hide what it does.
+
+**Consequences.**
+
+- The prefix is a new surface on the knowledge layer. Reaching it from anywhere
+  but the agents layer is a NetworkPolicy failure, not an engine feature.
+- Whatever a module returns here is outside the confidentiality guarantee C1
+  gives. An instance that plugs such a module accepts that until C8 lands.
+- Not `BREAKING`: no contract changes, and a module that does not use it is
+  untouched.
