@@ -572,8 +572,10 @@ without `routes()` is unchanged.
 
 These routes are **outside C1's classification stamp**: the engine does not
 classify what they return, and the module answers for it. They are reachable
-only from the agents layer, by the NetworkPolicy that already isolates the
-knowledge layer. The mechanism is **transitional**: it is replaced by a
+only inside the deployment, by the network rules that already exist and that
+this decision does not change: from the agents layer and the knowledge
+namespace's own pods (Kubernetes), or from any service on the shared internal
+network (compose). The mechanism is **transitional**: it is replaced by a
 contract, C8 (base-knowledge#40), and a module's routes move onto it then.
 
 **Alternative discarded.** Stamp every response of a module's routes. The engine
@@ -587,8 +589,9 @@ contortions that hide what it does.
 
 **Consequences.**
 
-- The prefix is a new surface on the knowledge layer. Reaching it from anywhere
-  but the agents layer is a NetworkPolicy failure, not an engine feature.
+- The prefix is a new surface on the knowledge layer. Its reach is whatever the
+  deployment's network rules admit to the knowledge service; narrowing it to the
+  agents layer alone would be a network-policy change, not an engine feature.
 - Whatever a module returns here is outside the confidentiality guarantee C1
   gives. An instance that plugs such a module accepts that until C8 lands.
 - Not `BREAKING`: no contract changes, and a module that does not use it is
