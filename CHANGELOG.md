@@ -19,6 +19,10 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/publish-release.sh`: a release's charts and engine images as release assets.** `scripts/publish-release.sh vX.Y.Z [--platforms linux/arm64,linux/amd64] [--upload] [--replace]` builds from `git archive` of the tag, per engine repository, `<chart>-X.Y.Z.tgz`, `<image>-vX.Y.Z-linux-<arch>.tar.gz` per platform (base-knowledge, base-inference-stand-in, base-agents, base-interface; built with buildx builder `base-multiarch`, labelled `org.opencontainers.image.version` and `.revision`), `manifest.json` and `SHA256SUMS`, in `${XDG_CACHE_HOME:-$HOME/.cache}/base-publish/vX.Y.Z/`, with a `lock.sha256` for an instance to pin. Without `--upload` it builds and prints what it would attach; with it, it creates the release when missing (notes: the version's `CHANGELOG.md` section) and attaches each asset, skipping one already attached with the same digest and refusing one that differs unless `--replace`. It refuses a missing, lightweight or divergent tag and a `VERSION` or chart version other than the tag's. base-platform's release gets no asset. `docs/ADAPTATION.md` §7. Not `BREAKING`: nothing an instance uses changes.
+
 ## [0.10.0] — 2026-10-29
 
 ### Added
