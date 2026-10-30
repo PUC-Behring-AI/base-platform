@@ -1,0 +1,50 @@
+name: nightly-harmony
+# harmony on main, every night. It replaces the push-to-main runs the
+# base-* repositories no longer pay for: the pull request run already tested
+# the tree that lands, and this run catches what drifted since (a sibling's
+# main, a dependency, the runner image).
+#
+# A separate file, not a `schedule` trigger in harmony.yml: that file is
+# reusable, and a job here that needs `issues: write` would make every
+# caller's run fail to start, since a called workflow cannot ask for more
+# than its caller grants.
+#
+# A red run opens one issue, or comments on the open one.
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harmony:
+    uses: ./.github/workflows/harmony.yml
+    secrets: inherit
+
+  # Bills only when the run is red.
+  report:
+    needs: harmony
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open or update the nightly issue
+        run: |
+          set -euo pipefail
+          title="Nightly harmony failed"
+          body="Run $RUN_URL on $(date -u +%Y-%m-%d) failed. Harmony on main is red."
+          number="$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
