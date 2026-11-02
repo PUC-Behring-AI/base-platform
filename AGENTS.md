@@ -53,8 +53,9 @@ source, and require both bound teams to approve a change to it.
   siblings are the base layers alone; from an instance, its own repositories
   and the base. CI runs it too
   (`.github/workflows/harmony.yml`, reusable): each repository's settings
-  name its siblings (`HARMONY_SIBLINGS`) and hold a read-only deploy key per
-  private sibling (`HARMONY_KEY_<NAME>`), so no file names a repository.
+  name its siblings (`HARMONY_SIBLINGS`), so no file names a repository, and
+  the organization's GitHub App (variable `HOST_APP_ID`, secret
+  `HOST_APP_PRIVATE_KEY`, Contents: Read) mints the token that clones them.
 - **The release script** (`scripts/release.sh`): the only way the base is
   tagged. It tags the five at `v<VERSION>` only when all five declare that
   version, sit on a clean `main`, and pass `harmony.sh` (`docs/ADAPTATION.md` §7).

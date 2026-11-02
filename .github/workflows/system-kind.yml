@@ -11,8 +11,10 @@ name: system-kind
 # The @ref picks this file, not what it checks out; base_ref does that.
 #
 # It names one repository, base-platform, whose scripts it runs; like harmony,
-# every other base-* sibling is cloned with the read-only deploy key
-# HARMONY_KEY_<NAME> and the repository variable HARMONY_SIBLINGS lists them.
+# every other base-* sibling is cloned with a token minted from the
+# organization's GitHub App (organization variable HOST_APP_ID and secret
+# HOST_APP_PRIVATE_KEY, Contents: Read) and the repository variable
+# HARMONY_SIBLINGS lists them.
 # A missing variable or secret fails the run. In base-platform itself it runs
 # on a pull request and on a push to main, and only when deploy/,
 # scripts/k8s-* or this file change: the test takes minutes.
@@ -43,6 +45,9 @@ on:
     secrets:
       instance_env:
         description: The instance's .env, KEY=value lines; without it throwaway values are generated for the keys of .env.example
+        required: false
+      HOST_APP_PRIVATE_KEY:
+        description: "The private key of the organization's GitHub App (Contents: Read) that clones the other base-* repositories; usually an organization secret passed by secrets: inherit"
         required: false
   pull_request:
     paths:
@@ -89,36 +94,64 @@ jobs:
           path: instance-repository
           persist-credentials: false
 
-      - name: Check out the other base-* repositories at base_ref
+      - name: List the other base-* repositories
+        id: siblings
         env:
           SIBLINGS: ${{ vars.HARMONY_SIBLINGS }}
-          KEYS: ${{ toJSON(secrets) }}
-          OWNER: ${{ github.repository_owner }}
+          APP_ID: ${{ vars.HOST_APP_ID }}
+          APP_KEY_SET: ${{ secrets.HOST_APP_PRIVATE_KEY != '' }}
         run: |
           set -euo pipefail
-          trap 'rm -f "$RUNNER_TEMP"/HARMONY_KEY_*' EXIT
           if [ -z "$SIBLINGS" ]; then
             echo "::error::repository variable HARMONY_SIBLINGS is not set"
             exit 1
           fi
+          list=""
           for name in $SIBLINGS; do
             case "$name" in
               base-platform) continue ;;
-              base-*) ;;
-              *) continue ;;
+              base-*) list="${list:+$list,}$name" ;;
             esac
-            secret="HARMONY_KEY_$(echo "$name" | tr '[:lower:]-' '[:upper:]_')"
-            key="$(jq -r --arg s "$secret" '.[$s] // empty' <<<"$KEYS")"
-            if [ -z "$key" ]; then
-              echo "::error::secret $secret is not set"
+          done
+          if [ -n "$list" ]; then
+            if [ -z "$APP_ID" ]; then
+              echo "::error::variable HOST_APP_ID is not set: the organization's GitHub App (Contents: Read) clones the base-* repositories"
               exit 1
             fi
-            keyfile="$RUNNER_TEMP/$secret"
-            printf '%s\n' "$key" > "$keyfile"
-            chmod 600 "$keyfile"
-            GIT_SSH_COMMAND="ssh -i $keyfile -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
-              git clone -q --depth 1 --branch "$BASE_REF" "git@github.com:$OWNER/$name.git" "$name"
-            rm -f "$keyfile"
+            if [ "$APP_KEY_SET" != "true" ]; then
+              echo "::error::secret HOST_APP_PRIVATE_KEY is not set: the organization's GitHub App (Contents: Read) clones the base-* repositories"
+              exit 1
+            fi
+          fi
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+
+      - name: Mint a read-only token for the other base-* repositories
+        id: app
+        if: steps.siblings.outputs.list != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.HOST_APP_ID }}
+          private-key: ${{ secrets.HOST_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.siblings.outputs.list }}
+          permission-contents: read
+
+      # The token goes in a header given on the command line, so no clone's
+      # .git/config keeps it.
+      - name: Check out the other base-* repositories at base_ref
+        if: steps.siblings.outputs.list != ''
+        env:
+          LIST: ${{ steps.siblings.outputs.list }}
+          TOKEN: ${{ steps.app.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          IFS=, read -ra names <<<"$LIST"
+          for name in "${names[@]}"; do
+            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+              clone -q --depth 1 --branch "$BASE_REF" "https://github.com/$OWNER/$name.git" "$name"
           done
 
       # Each tool pinned by version and by the sha256 of its release file.

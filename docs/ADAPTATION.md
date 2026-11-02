@@ -66,8 +66,9 @@ Make it executable: `chmod +x scripts/gate.sh`.
 `base-platform` as siblings, `base-platform` at the tag the instance pins
 (§7), then runs `./scripts/gate.sh`, on every pull request. Every layer but
 `<prefix>-platform` also checks out `<prefix>-platform`, where the pin lives;
-it is private, so that checkout takes a read-only deploy key, held in the
-secret the harmony workflow already uses, `HARMONY_KEY_<PREFIX>_PLATFORM`:
+it is private, so that checkout takes a token minted from the organization's
+GitHub App, the one the harmony workflow already uses (organization variable
+`HOST_APP_ID`, organization secret `HOST_APP_PRIVATE_KEY`, Contents: Read):
 
     name: gate
     on: [pull_request]
@@ -85,10 +86,19 @@ secret the harmony workflow already uses, `HARMONY_KEY_<PREFIX>_PLATFORM`:
               repository: PUC-Behring-AI/base-platform
               ref: v<base>
               path: base-platform
+          - id: app                     # not in <prefix>-platform itself
+            uses: actions/create-github-app-token@v2
+            with:
+              app-id: ${{ vars.HOST_APP_ID }}
+              private-key: ${{ secrets.HOST_APP_PRIVATE_KEY }}
+              owner: ${{ github.repository_owner }}
+              repositories: <prefix>-platform
+              permission-contents: read
           - uses: actions/checkout@v4   # not in <prefix>-platform itself
             with:
               repository: PUC-Behring-AI/<prefix>-platform
-              ssh-key: ${{ secrets.HARMONY_KEY_<PREFIX>_PLATFORM }}
+              token: ${{ steps.app.outputs.token }}
+              persist-credentials: false
               path: <prefix>-platform
           - uses: actions/setup-python@v5
             with:
@@ -311,8 +321,8 @@ A module:
 - **is consumed at its team's `main`**, not by tag. The socket records the
   commit in each image (a build argument written into an image label) and
   tests against `main` on a schedule, opening an issue in the socket when
-  `main` breaks it. A private module is read in CI with a read-only deploy key
-  held in a secret of the socket's own, as in §3;
+  `main` breaks it. A private module is read in CI with a read-only token
+  minted from the organization's GitHub App, as in §3;
 - **changes by pull request in its own repository**, which its team reviews
   and merges. A module repository is not a member of the base or of an
   instance: no `# Base:` line, no harmony run, its own tests.
@@ -732,11 +742,13 @@ jobs:
       instance_path: deploy/kind            # its <instance-dir>
       instance_repository: owner/name       # the repository that holds it
       require_instance_env: true            # optional: no throwaway values
-    secrets: inherit                        # HARMONY_KEY_*, and instance_env
+    secrets: inherit                        # HOST_APP_PRIVATE_KEY, and instance_env
 ```
 
-Like harmony it needs the variable `HARMONY_SIBLINGS` and a deploy key
-`HARMONY_KEY_<NAME>` per sibling. Secret `instance_env` is the instance's
+Like harmony it needs the variable `HARMONY_SIBLINGS`, and the organization's
+GitHub App, with Contents: Read, to clone the base-* repositories it lists:
+organization variable `HOST_APP_ID` and organization secret
+`HOST_APP_PRIVATE_KEY`. Secret `instance_env` is the instance's
 `.env`; without it each key of `.env.example` gets a throwaway value and the
 run says so in a notice, unless `require_instance_env` makes it fail.
 `instance_repository` should be the calling repository, which is checked out
