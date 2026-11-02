@@ -130,11 +130,13 @@ jobs:
           bats-version: "1.11.0"
 
       # The union of every gate's dependencies. base-knowledge is installed
-      # as a package with its test module, the way its own CI does.
+      # as a package with its test module, the way its own CI does. ruff is
+      # pinned to the version the local gates run: a newer one adds rules that
+      # turn every caller red on code nobody touched.
       - name: Install gate dependencies
         run: |
           pip install pytest pytest-cov pyyaml "jsonschema[format-nongpl]" referencing \
-            ruff httpx uvicorn fastapi bcrypt "psycopg[binary]" psycopg-pool
+            ruff==0.15.5 httpx uvicorn fastapi bcrypt "psycopg[binary]" psycopg-pool
           if [ -d base-knowledge ]; then
             pip install "./base-knowledge[dev]" -e ./base-knowledge/tests/fake_module
           fi

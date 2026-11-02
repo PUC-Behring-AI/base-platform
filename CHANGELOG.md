@@ -30,6 +30,10 @@ minor carries breaking changes.
 
 - **CI: gate and harmony run on pull requests only, and harmony runs nightly on main** (#106; base-knowledge#53, base-inference#133, base-agents#48, base-interface#57). In the four engine repositories, `gate.yml` and `harmony.yml` no longer run on a push to `main`: the pull request run already tested the tree that lands (rebase merge, branch kept up to date). A newer push cancels a superseded pull request run, never a scheduled or dispatched one. base-platform's `nightly-harmony.yml` runs harmony on `main` every day at 09:00 UTC (the schedule dispatches the run that does the work) and, when it is red, opens or comments on one issue *Nightly harmony failed*. base-inference's ADR on its gate gains a dated note saying so. Not `BREAKING`: nothing an instance uses changes.
 
+### Fixed
+
+- **CI pins ruff to 0.15.5**, the version the local gates run, in base-platform's `gate.yml` and in the reusable `harmony.yml`. Unpinned, the runner resolved ruff 0.17.3, whose new rules (FURB167, PLC0206, PLW1510, TRY004) failed the reusable harmony in a caller on code nobody had touched. A caller gets the pin by calling `harmony.yml` at a tag that has it, from 0.11.0 on. The engines' own `gate.yml` still install ruff unpinned. Not `BREAKING`.
+
 ## [0.10.0] — 2026-10-29
 
 ### Added

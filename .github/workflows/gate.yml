@@ -49,8 +49,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      # ruff pinned to the version the local gates run, as in harmony.yml.
       - name: Install gate dependencies
-        run: pip install pytest pyyaml "jsonschema[format-nongpl]" ruff
+        run: pip install pytest pyyaml "jsonschema[format-nongpl]" ruff==0.15.5
 
       # The chart step of the gate fails without helm and kubeconform. Pinned
       # the same way: by version and by sha256 of the release tarball.
