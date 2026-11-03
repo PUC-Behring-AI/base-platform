@@ -595,6 +595,8 @@ def test_c3_error_rejects_a_code_that_is_not_machine_readable(registry: Registry
             "provenance_query",
             {"filter": {"collection": "answers", "record_id": "a-1"}, "limit": 1, "cursor": "7"},
         ),
+        ("file", {"name": "report.pdf", "media_type": "application/pdf", "size": 2048}),
+        ("file", {"name": "empty.txt", "media_type": "text/plain", "size": 0}),
     ],
 )
 def test_c3_engine_body_accepts_its_valid_instance(
@@ -626,6 +628,14 @@ def test_c3_engine_body_accepts_its_valid_instance(
             "provenance_query",
             {"request_id": _RID, "filter": {"about_request_id": _RID}, "limit": 1},
         ),
+        (
+            "file",
+            {"name": "a.pdf", "media_type": "application/pdf", "size": 3, "content": "JVBE"},
+        ),
+        ("file", {"name": "a.pdf", "media_type": "application/pdf"}),
+        ("file", {"name": "a.pdf", "media_type": "application/pdf", "size": -1}),
+        ("file", {"name": "", "media_type": "application/pdf", "size": 3}),
+        ("file", {"name": "a.pdf", "media_type": "pdf", "size": 3}),
     ],
     ids=[
         "unknown-decision",
@@ -637,6 +647,11 @@ def test_c3_engine_body_accepts_its_valid_instance(
         "record-without-collection",
         "limit-too-large",
         "reader-id-in-body",
+        "file-with-its-bytes",
+        "file-without-size",
+        "file-negative-size",
+        "file-without-name",
+        "file-media-type-not-type-slash-subtype",
     ],
 )
 def test_c3_engine_body_rejects(

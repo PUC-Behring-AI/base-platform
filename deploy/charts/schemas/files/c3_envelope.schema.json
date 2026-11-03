@@ -95,6 +95,17 @@
       "required": ["filter", "limit"],
       "additionalProperties": false
     },
+    "file": {
+      "type": "object",
+      "description": "A file a call carried to a flow, as agents names it in C6: its name, media type and size in bytes, never its bytes. The file itself travels as the part named file of a multipart/form-data call (docs/CONTRACTS.md §C3).",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "media_type": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" },
+        "size": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["name", "media_type", "size"],
+      "additionalProperties": false
+    },
     "error": {
       "type": "object",
       "description": "A typed failure. code is machine-readable; message is for a person and must not carry classified content, because errors reach logs.",

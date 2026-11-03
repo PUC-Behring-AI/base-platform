@@ -99,7 +99,32 @@ instance-defined, and each instance keeps its payload schemas in
   The body stays instance-defined, so the marker sits beside it, not inside it.
 - **A typed error.** It carries a machine-readable `code` and a `message` for a
   person. The message never contains classified content, because errors reach
-  logs.
+  logs. A call that does not parse, or whose body is not a JSON object, is
+  refused with `request_invalid` (400), whose message names where the call
+  failed and never echoes the body.
+- **A file travels as `multipart/form-data`** to the same flow route. A call
+  without a file is JSON, as before; a call with one is a form:
+  - The part named `file` is the file, with its filename and media type. A
+    call carries at most one, and a file in any other part is refused.
+  - Every other part is one field of the body, by its name, and its value is
+    a **string**, passed to the flow as sent: never decoded as JSON, never
+    coerced to a number or a boolean. The flow validates that body against
+    its schema as it validates a JSON one, so a field the schema types as
+    something other than a string fails there, loudly, instead of being
+    guessed. A flow that takes a file and needs a number, a boolean, a list or
+    an object declares that field as a string and parses it itself. A field
+    sent twice is refused rather than one copy kept.
+  - A flow declares whether it takes a file. A file sent to a flow that takes
+    none is refused with `flow_takes_no_file` (400), never dropped.
+  - `agents` refuses a file over its configured size limit with
+    `file_too_large` (413). The message names the limit, never the file.
+  - A form that does not parse, a repeated field, or a file outside the part
+    `file` is `request_invalid` (400).
+  - Receiving a file is a C6 record under the call's request id that names the
+    file (`schemas/c3_envelope.schema.json` `file`: name, media type, size)
+    and never carries its bytes. The file has no class of its own when it
+    arrives; the record takes the class of what the request has read by then,
+    `local-only` when it has read nothing.
 - **Two call modes.**
   - **Synchronous:** the `response` definition.
   - **Job:** starting returns `job_accepted`. Polling returns `job_status`,
