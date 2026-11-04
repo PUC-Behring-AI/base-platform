@@ -19,6 +19,21 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-04
+
+### Added
+
+- **BREAKING** — **C3 carries a file to a flow as `multipart/form-data`** (#79; base-agents#50). `docs/CONTRACTS.md` §C3: the same flow route `/v1/flows/{name}`, the file in the part named `file`, every other part a string field of the body, passed as sent; a flow declares whether it takes a file. The refusals are `request_invalid` (400: a form that does not parse, a field sent twice, a file in another part, a body neither JSON nor a form), `flow_takes_no_file` (400) and `file_too_large` (413). A C6 record names the file received (name, media type, size), never its bytes; `c3_envelope` gains the `file` def that record uses. base-agents hands the file to the flow as `ctx.file` (name, media type, bytes; `None` without one), for a flow whose `Flow` declares `takes_file=True`; `FLOW_MAX_FILE_BYTES` caps it (100 MiB by default); the engine now depends on `python-multipart`. `BREAKING` because it changes a contract: base-agents 0.12.0 reads C3's `file` def, which a base-platform before 0.12.0 does not have.
+- **base-agents' chart can keep the agents' state on a disk** (base-agents#51). `persistence.enabled` creates the claim `agents-data` (ReadWriteOnce, StorageClass by name, default `base-rwo`), mounts it at `persistence.mountPath` and switches the Deployment to the `Recreate` strategy; `replicaCount` above 1 then fails the render. `persistence.fsGroup` (unset by default) gives the volume to a group. `extraVolumes` also admits a `persistentVolumeClaim` or an `emptyDir` source; `hostPath` and every other source are still refused. `helm uninstall` deletes the claim. Not `BREAKING`: disabled by default, the render is unchanged.
+
+### Fixed
+
+- **base-agents answers a body its route cannot take inside the C3 envelope** (base-agents#36): a body that is not a JSON object, JSON that does not parse, or a form sent to a JSON route is `request_invalid` (400) with a request id, naming where the call failed and never what it carried. It was FastAPI's 422, outside the envelope, with the refused body copied into the logs. Not `BREAKING`: it was outside the contract before.
+
+### Changed
+
+- **CI: base-agents drops its per-issue hygiene job**; the organization's daily sweep covers its issues. Not `BREAKING`.
+
 ## [0.11.0] — 2026-11-02
 
 ### Added
