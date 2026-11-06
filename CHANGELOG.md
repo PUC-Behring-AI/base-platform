@@ -19,6 +19,12 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-11-06
+
+### Added
+
+- **base-inference's chart lets an instance place, size and roll out the embedding stand-in.** `standIn.resources` (a Kubernetes ResourceRequirements object), `standIn.nodeSelector` (a map) and `standIn.tolerations` (a list) render verbatim on the stand-in pod; `standIn.strategy` renders verbatim as the stand-in Deployment's strategy, so a node pool capped at one node can use `Recreate` instead of a surge pod that never schedules. All four are empty by default and render nothing, so the chart's output is unchanged for an instance that does not set them. Not `BREAKING`: new optional values only.
+
 ## [0.12.0] — 2026-11-04
 
 ### Added
