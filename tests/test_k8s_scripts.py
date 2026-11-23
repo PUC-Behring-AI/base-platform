@@ -724,3 +724,17 @@ def test_job_timeout_is_per_step(tmp_path, gateway):
 def test_job_timeout_defaults_to_120(tmp_path):
     inst = _system_test(tmp_path, {"steps": [{"flow": "f", "status": 202, "input": {}}]})
     assert k8s_system_test.load(inst)["steps"][0]["timeout"] == 120
+
+
+def test_dig_reads_a_list_item_by_its_index():
+    # An instance saves a field of the first item of a list answer
+    # (e.g. body.items.0.revision) to act on what it created.
+    answer = {"body": {"items": [{"revision": 7}, {"revision": 3}]}}
+    assert k8s_system_test.dig(answer, "body.items.0.revision") == 7
+    assert k8s_system_test.dig(answer, "body.items.1.revision") == 3
+
+
+def test_dig_names_an_index_past_the_list():
+    with pytest.raises(k8s_system_test.ConfigError) as err:
+        k8s_system_test.dig({"body": {"items": []}}, "body.items.0.revision")
+    assert "body.items.0.revision" in str(err.value)

@@ -19,7 +19,8 @@ system-test.yaml:
         body_schema: <$id>        # optional: validates the response's body
         outcome: answered         # optional: the response's outcome
         timeout: 120              # optional, 202 only: seconds to wait for the job
-        save: {name: body.id}     # optional: ${name} in a later step's input
+        save: {name: body.id}     # optional: ${name} in a later step's input;
+                                  # body.items.0.id indexes a list
     knowledge_search:             # optional: a C1 search from namespace agents
       query: some words
       limit: 3
@@ -153,10 +154,16 @@ def substitute(value: Any, saved: dict[str, Any]) -> Any:
 
 
 def dig(payload: Any, dotted: str) -> Any:
+    # A decimal key indexes a list (body.items.0.id), so a step can save a
+    # field of an item a list answer carries, such as the revision a later
+    # delete must send.
     for key in dotted.split("."):
-        if not isinstance(payload, dict) or key not in payload:
+        if isinstance(payload, list) and key.isdecimal() and int(key) < len(payload):
+            payload = payload[int(key)]
+        elif isinstance(payload, dict) and key in payload:
+            payload = payload[key]
+        else:
             raise ConfigError(f"no {dotted} in {json.dumps(payload)[:300]}")
-        payload = payload[key]
     return payload
 
 
