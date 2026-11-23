@@ -19,6 +19,16 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-11-23
+
+### Added
+
+- **The system test's `save` indexes a list**: a decimal key in the dotted path picks a list item, as in `body.items.0.revision`, so an instance can delete what its test created. Not `BREAKING`: a path that worked before resolves the same.
+
+### Fixed
+
+- **The reusable harmony installs `python-multipart`**. base-agents parses multipart forms since 0.12.0, and harmony's fixed install list lacked it, so every caller's harmony was red on base-agents' flow tests. Not `BREAKING`: CI only.
+
 ## [0.13.0] — 2026-11-06
 
 ### Added
