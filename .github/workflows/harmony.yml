@@ -165,11 +165,14 @@ jobs:
       # The union of every gate's dependencies. base-knowledge is installed
       # as a package with its test module, the way its own CI does. ruff is
       # pinned to the version the local gates run: a newer one adds rules that
-      # turn every caller red on code nobody touched.
+      # turn every caller red on code nobody touched. python-multipart is here
+      # because base-agents parses multipart forms since v0.12.0 (a file on a
+      # flow call); without it its flow tests fail on every caller.
       - name: Install gate dependencies
         run: |
           pip install pytest pytest-cov pyyaml "jsonschema[format-nongpl]" referencing \
-            ruff==0.15.5 httpx uvicorn fastapi bcrypt "psycopg[binary]" psycopg-pool
+            ruff==0.15.5 httpx uvicorn fastapi bcrypt "psycopg[binary]" psycopg-pool \
+            python-multipart
           if [ -d base-knowledge ]; then
             pip install "./base-knowledge[dev]" -e ./base-knowledge/tests/fake_module
           fi
