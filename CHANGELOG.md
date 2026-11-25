@@ -19,6 +19,12 @@ minor carries breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **ADR-016: an inference module is a model package, never gateway code.** The question ADR-014 left open for the inference layer is closed: a team's module there is a model package (card, evaluation, recipe, standalone server); the engine serves what the socket's adapter declares from the cards; a module's own server only stands in behind the gateway; and moving a use to an external model is explicit, never a fallback. `ADAPTATION.md`'s plug table points to it. Not `BREAKING`: an instance that declares models by name is unchanged.
+- **base-inference: Bedrock models beside Ray's, in `mode: ray`.** A model may name `provider: bedrock` in mode ray; it joins the `external` access group, so a `local-only` key does not reach it, and the gateway never falls back to it. The ServiceAccount renders when a model is on Bedrock, in either mode. Not `BREAKING`: a mode ray deployment without a provider renders as before.
+- **base-inference: `ray.nodeSelector` and `ray.tolerations`**, verbatim into the Ray head's pod, so the engine can run on a tainted, labelled GPU node pool. Empty by default, rendering nothing. Not `BREAKING`.
+
 ## [0.13.1] — 2026-11-23
 
 ### Added
