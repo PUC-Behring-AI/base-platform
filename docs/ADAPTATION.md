@@ -255,9 +255,9 @@ Python package, discovered through the entry-point group
 `base_<layer>.modules`.
 
 - Only `knowledge` accepts modules today, and `agents` will, through the same
-  group. `inference` takes configuration only today, because code inside the
-  gateway could bypass the very policy it enforces; accepting modules there is
-  open, and needs its own record (ADR-014).
+  group. `inference` takes no module code, because code inside the gateway
+  could bypass the very policy it enforces; its modules are model packages,
+  which the socket reads into configuration (ADR-016).
 - `interface` takes code by a different socket, because a browser bundle is
   not an installed package (ADR-013, ADR-014):
   - the instance's `src/instance/` is compiled into the engine's frontend
@@ -304,7 +304,7 @@ of the plugged whole.
 |---|---|
 | `knowledge`, `agents` | a Python package installed in the instance image, discovered through `base_<layer>.modules`, loaded when the manifest lists it (above) |
 | `interface` | a UI package whose routes `src/instance/` maps, lazily, into the shell (above) |
-| `inference` | none today: configuration only; accepting modules here is open and needs its own record (ADR-014) |
+| `inference` | model packages (ADR-016): the socket reads each plugged model's card into `models.yaml`; no code in the gateway |
 | `platform` | none |
 
 A module:
