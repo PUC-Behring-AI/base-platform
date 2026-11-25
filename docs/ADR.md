@@ -596,3 +596,69 @@ contortions that hide what it does.
   gives. An instance that plugs such a module accepts that until C8 lands.
 - Not `BREAKING`: no contract changes, and a module that does not use it is
   untouched.
+
+---
+
+## ADR-016: An inference module is a model package, never gateway code
+
+**Context.** ADR-014 left the inference layer without modules, because code
+inside the gateway could bypass the policy it enforces (ADR-002), and said that
+accepting modules there needs its own record. Meanwhile what a team does
+develop for this layer is not code but models: weights, often fine-tuned, with
+the facts a caller depends on (dimensions, token limit, pooling, the
+instruction a query needs) and a way to tell that a new revision still behaves.
+Without a module, an instance names a model by its source alone, copies those
+facts by hand into every repository that needs them, and tests nothing against
+the model's own `main`. An instance that needed a real embedding model on a
+machine without a GPU also ended up carrying a model server of its own, in the
+socket, which ADR-014 does not allow.
+
+**Decision.** In the inference layer, a module is a **model package**: a team's
+repository with, per model, a card the socket can read (source and revision,
+task, the facts a caller depends on, serving hints such as precision,
+quantization and GPU count), an evaluation set with reference outputs, the
+recipe that produced the model when the team trained it, and a standalone mode
+that serves one model locally for the team. It obeys ADR-014 in full: it runs
+standalone, names no instance, depends on no base package, and is consumed at
+`main` with the commit recorded.
+
+- **The engine serves; the module never runs inside the gateway.** The socket's
+  adapter turns the cards of the plugged models into the engine's
+  `models.yaml`; the engine serves them. A module adds no route, no key rule and
+  no provider to the gateway.
+- **Where a module's own server runs, it runs behind the gateway**, in place of
+  the stand-in, on a cluster without a GPU: it receives only what a key
+  permitted and has no route out (ADAPTATION, "a container that runs instance
+  code reaches only internal services"). It is a development and test path; the
+  engine is what serves on a GPU.
+- **Fallback is explicit.** An instance may declare external models next to
+  local ones. Moving a use from a local model to an external one is a
+  configuration change with a key of the matching family; the engine never
+  falls back from a local model to an external one by itself, because a
+  `local-only` key must not reach an external model, whatever fails.
+- **The socket tests the module.** On a schedule, against the module's `main`:
+  every card passes the adapter, the generated configuration passes the
+  engine's own validation, and the evaluations that run without a GPU pass
+  through the plugged gateway. GPU evaluations run where the GPU is, before the
+  deployment is accepted.
+
+**Alternative discarded.** A generic model server in the engine, so that any
+instance can serve a real model on a CPU.
+
+**What that would have cost.** An engine generalised from one instance's case
+(ADR-004), and a second serving path in the base, beside Ray Serve, to keep in
+step with it. The module's standalone server already exists for its team, and
+the stand-in slot already accepts another image.
+
+**Consequences.**
+
+- The `inference` row of ADR-014's plug table becomes: model packages, read by
+  the socket's adapter into `models.yaml`; no code in the gateway.
+- What a model is (its card) is written once, in the module. Sockets in other
+  layers that need a model's facts read them from there, not from a copy.
+- The engine has to serve what such modules declare: several GPUs per model,
+  embedding models through Ray Serve, and local and external models in one
+  deployment. Those are engine changes with their own record in
+  base-inference.
+- Not `BREAKING`: an instance that keeps declaring models by name in
+  `models.yaml` is unchanged.
